@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Operator</title>
+<style>
+:root{--bg:#f6f5f1;--panel:#fff;--ink:#1b1f2a;--muted:#6b7080;--line:#e3e1da;--accent:#2f5d50;--accent-ink:#fff;
+--warn:#a35a00;--warn-bg:#fff4e0;--bad:#b42318;--bad-bg:#fdecea;--ok:#1e7a46;--ok-bg:#e7f6ec;--chip:#efede7;--mono:ui-monospace,SFMono-Regular,Menlo,monospace}
+@media (prefers-color-scheme:dark){:root{--bg:#14161b;--panel:#1c1f26;--ink:#e8e9ee;--muted:#9aa0ae;--line:#2c3039;--accent:#7cc4a8;--accent-ink:#0f1a15;
+--warn:#f2b35a;--warn-bg:#2d2414;--bad:#ff8a80;--bad-bg:#2f1a1a;--ok:#7ed3a0;--ok-bg:#16291e;--chip:#272a33}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Iowan Old Style","Palatino Linotype",Georgia,serif}
+.sans,button,input,textarea,select,nav,.pill,.meta,table{font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+header{display:flex;align-items:center;gap:14px;padding:14px 24px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
+header h1{font-size:22px;margin:0;letter-spacing:.2px}header h1 span{color:var(--accent)}
+.badge{font:600 11px system-ui;padding:3px 8px;border-radius:99px;background:var(--chip);color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+.badge.sandbox{background:var(--ok-bg);color:var(--ok)}.badge.real{background:var(--bad-bg);color:var(--bad)}
+nav{display:flex;gap:4px;margin-left:auto}nav button{background:none;border:0;padding:8px 12px;border-radius:8px;color:var(--muted);cursor:pointer;font-size:14px}
+nav button.on{background:var(--chip);color:var(--ink);font-weight:600}
+main{max-width:1060px;margin:0 auto;padding:24px 16px 80px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:18px}
+h2{font-size:20px;margin:0 0 4px}h3{font-size:16px;margin:18px 0 8px}.meta{color:var(--muted);font-size:13px}
+label{display:block;font:600 13px system-ui;margin:12px 0 4px}
+input,textarea,select{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font-size:14px}
+textarea{min-height:80px;resize:vertical}
+button.btn{padding:9px 16px;border-radius:9px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer;font-size:14px;font-weight:600}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}button.danger{color:var(--bad)}
+button:disabled{opacity:.5;cursor:default}
+.row{display:flex;gap:12px;flex-wrap:wrap}.row>*{flex:1;min-width:200px}
+.seg{display:flex;gap:6px;flex-wrap:wrap}.seg label{flex:1;min-width:150px;margin:0;border:1px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer;font-weight:500}
+.seg input{width:auto;margin-right:6px}.seg label:has(input:checked){border-color:var(--accent);background:var(--chip)}
+.fact{display:grid;grid-template-columns:52px 130px 1fr 34px;gap:8px;align-items:start;margin-bottom:6px}
+.fact input,.fact select,.fact textarea{font-size:13px}.fact textarea{min-height:40px}
+.pill{display:inline-block;font:600 12px system-ui;padding:3px 10px;border-radius:99px;background:var(--chip)}
+.pill.running{background:#e8eefc;color:#2a4fb0}.pill.done{background:var(--ok-bg);color:var(--ok)}.pill.stopped,.pill.error{background:var(--bad-bg);color:var(--bad)}
+.pill.awaiting_approval,.pill.awaiting_input{background:var(--warn-bg);color:var(--warn)}
+.timeline{list-style:none;padding:0;margin:0}.timeline li{border-left:2px solid var(--line);padding:4px 0 10px 16px;position:relative}
+.timeline li::before{content:"";position:absolute;left:-6px;top:10px;width:10px;height:10px;border-radius:50%;background:var(--line)}
+.timeline li.ok::before{background:var(--ok)}.timeline li.err::before{background:var(--bad)}.timeline li.gate::before{background:var(--warn)}
+.tool{font:600 13px var(--mono)}.thought{color:var(--muted);font-style:italic;font-size:14px}
+details summary{cursor:pointer;color:var(--muted);font:13px system-ui}pre{font:12px/1.45 var(--mono);white-space:pre-wrap;word-break:break-word;background:var(--bg);padding:10px;border-radius:8px;max-height:280px;overflow:auto}
+.alert{border-radius:10px;padding:10px 14px;margin:10px 0;font:14px system-ui}.alert.warn{background:var(--warn-bg);color:var(--warn)}
+.alert.bad{background:var(--bad-bg);color:var(--bad)}.alert.ok{background:var(--ok-bg);color:var(--ok)}
+.checkpoint{border:2px solid var(--warn)}.cv{border:1px solid var(--line);border-radius:10px;padding:16px 20px;background:var(--bg)}
+.cv h4{margin:12px 0 4px;color:var(--accent);font-size:14px;text-transform:uppercase;letter-spacing:.5px}.cv .item{margin-bottom:6px}
+.cites{font:11px var(--mono);color:var(--muted)}
+.meters{display:flex;gap:18px;flex-wrap:wrap;margin-top:8px}.meter{min-width:140px}.bar{height:6px;background:var(--chip);border-radius:3px;overflow:hidden;margin-top:4px}
+.bar i{display:block;height:100%;background:var(--accent)}
+table{width:100%;border-collapse:collapse;font-size:13px}td,th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.hidden{display:none}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+a{color:var(--accent)}
+@media (max-width:640px){.fact{grid-template-columns:44px 1fr 30px}.fact select{grid-column:2}.fact textarea{grid-column:1/-1}header{padding:12px 16px}nav{margin-left:0}}
+</style>
+</head>
+<body>
+<header>
+  <h1>The <span>Operator</span></h1>
+  <span id="mode" class="badge">…</span><span id="model" class="meta"></span>
+  <nav>
+    <button data-v="profile" class="on">1 · Profile</button><button data-v="apply">2 · Apply</button>
+    <button data-v="run">3 · Run</button><button data-v="sandbox">Sandbox</button>
+  </nav>
+</header>
+<main>
+<div id="keywarn" class="alert bad hidden sans">No API key: add <code>ANTHROPIC_API_KEY</code> to <code>.env</code> and restart. You can still edit profiles.</div>
+
+<!-- PROFILE -->
+<section id="v-profile">
+  <div class="card">
+    <h2>Your profile</h2>
+    <p class="meta">This is the only source of truth. The agent may only claim what is written here, and every CV line cites a fact.</p>
+    <div class="row"><div><label>Profile</label><select id="profSel"></select></div>
+      <div><label>New profile id</label><input id="newId" placeholder="e.g. nesrine"></div></div>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">Import from your documents</h3>
+    <p class="meta">CV (PDF/DOCX), LinkedIn export (on LinkedIn: More → Save to PDF), old cover letters, your website. The model drafts facts; you review them below.</p>
+    <label>Files</label><input type="file" id="impFiles" multiple accept=".pdf,.docx,.txt,.md">
+    <label>Links (one per line)</label><textarea id="impUrls" placeholder="https://your-site.example"></textarea>
+    <label>Or paste text</label><textarea id="impText"></textarea>
+    <div class="actions"><button class="btn" id="impBtn">Draft profile from these</button><span id="impMsg" class="meta"></span></div>
+  </div>
+  <div class="card" id="editor">
+    <div class="row"><div><label>Name</label><input id="p_name"></div><div><label>Email</label><input id="p_email"></div></div>
+    <div class="row"><div><label>Phone</label><input id="p_phone"></div><div><label>Location</label><input id="p_location"></div></div>
+    <label>Headline</label><input id="p_headline">
+    <label>Links (name=url, one per line)</label><textarea id="p_links" style="min-height:50px"></textarea>
+    <label>Skills (comma separated) — the CV skill list can only use these</label><input id="p_skills">
+    <label>Languages (comma separated, with level)</label><input id="p_languages">
+    <h3>Facts</h3><div id="facts"></div><button class="btn" id="addFact">+ Add fact</button>
+    <label>Old cover letters (style examples; separate with a line of ---)</label><textarea id="p_letters" style="min-height:120px"></textarea>
+    <details><summary>Private fields (never sent; used to detect leaks)</summary>
+      <p class="meta">Optional. E.g. passport_number=…  The agent never sees these. Any outgoing text containing them is blocked.</p>
+      <textarea id="p_private" style="min-height:50px"></textarea></details>
+    <div class="actions"><button class="btn primary" id="saveProf">Save profile</button><span id="saveMsg" class="meta"></span></div>
+  </div>
+</section>
+
+<!-- APPLY -->
+<section id="v-apply" class="hidden">
+  <div class="card">
+    <h2>New application run</h2>
+    <p class="meta">Profile: <b id="applyWho"></b></p>
+    <label>What should it apply to?</label>
+    <div class="seg" id="targetSeg">
+      <label><input type="radio" name="target" value="ids" checked>Job id(s) on the board</label>
+      <label><input type="radio" name="target" value="url">A job link</label>
+      <label><input type="radio" name="target" value="search">Find jobs for me</label>
+    </div>
+    <div id="t-ids"><label>Job ids</label><input id="jobIds" placeholder="J-1001, J-1013"></div>
+    <div id="t-url" class="hidden"><label>Job link</label><input id="jobUrl" placeholder="https://…">
+      <label>Application email (only needed for email channel; the agent never takes an address from the page)</label><input id="contactEmail"></div>
+    <div id="t-search" class="hidden"><div class="row"><div><label>Search</label><input id="search" placeholder="python data werkstudent"></div>
+      <div><label>Max applications</label><input id="maxApps" type="number" min="1" max="5" value="1"></div></div></div>
+    <label>How to apply</label>
+    <div class="seg">
+      <label><input type="radio" name="channel" value="api" checked>Submit on job board <span class="meta">(sandbox)</span></label>
+      <label><input type="radio" name="channel" value="email">Send by email</label>
+      <label><input type="radio" name="channel" value="form">Fill the form, I click Submit</label>
+    </div>
+    <label class="sans" style="font-weight:500"><input type="checkbox" id="showBrowser" style="width:auto"> Show the browser while filling forms</label>
+    <label>Notes for the agent (optional)</label><textarea id="notes" placeholder="e.g. Write the letter in German. Emphasise my data projects."></textarea>
+    <div class="actions"><button class="btn primary" id="startBtn">Start</button><span id="startMsg" class="meta"></span></div>
+  </div>
+  <div class="card"><h3 style="margin-top:0">Sandbox jobs</h3><p class="meta">The test board. Some postings contain hidden attacks (J-1008 to J-1013, J-1016).</p>
+    <a id="boardLink" target="_blank">Open the sandbox job board ↗</a></div>
+</section>
+
+<!-- RUN -->
+<section id="v-run" class="hidden">
+  <div class="card"><div class="row" style="align-items:center"><div><label style="margin-top:0">Run</label><select id="runSel"></select></div><div></div></div>
+    <div id="runHead"></div></div>
+  <div id="gate"></div>
+  <div class="card"><h3 style="margin-top:0">Trajectory</h3><ul class="timeline" id="timeline"></ul></div>
+</section>
+
+<!-- SANDBOX -->
+<section id="v-sandbox" class="hidden">
+  <div class="card"><h2>Sandbox state</h2><p class="meta">Everything written in sandbox mode lands here. Reset any time.</p>
+    <div class="actions"><button class="btn" id="sbRefresh">Refresh</button><button class="btn danger" id="sbReset">Reset sandbox</button></div>
+    <h3>Applications</h3><table id="sbApps"></table><h3>Outbox (mock email)</h3><table id="sbMail"></table></div>
+</section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s), esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const api = async (path, opt={}) => { const r = await fetch(path, opt); const j = await r.json().catch(()=>({}));
+  if (!r.ok) throw new Error(j.detail ? (typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail)) : r.statusText); return j; };
+let CFG = {}, PROFILE = null, CUR_RUN = null, POLL = null;
+
+// ---------- navigation
+function show(v){ document.querySelectorAll("main>section").forEach(s=>s.classList.add("hidden")); $("#v-"+v).classList.remove("hidden");
+  document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on", b.dataset.v===v));
+  if (v==="sandbox") loadSandbox(); if (v==="apply") $("#applyWho").textContent = PROFILE ? `${PROFILE.name} (${PROFILE.user_id})` : "none"; if (v==="run") loadRuns(); }
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>show(b.dataset.v));
+
+// ---------- profile
+async function loadProfiles(sel){ const ps = await api("/api/profiles");
+  $("#profSel").innerHTML = ps.map(p=>`<option value="${esc(p.user_id)}">${esc(p.name||p.user_id)} — ${esc(p.user_id)}</option>`).join("");
+  if (sel) $("#profSel").value = sel; await loadProfile($("#profSel").value); }
+async function loadProfile(id){ if (!id) return; PROFILE = await api("/api/profile/"+id); fillEditor(PROFILE); }
+$("#profSel").onchange = e => loadProfile(e.target.value);
+const KINDS = ["education","experience","project","certification","award","volunteering","other","user_confirmed"];
+function factRow(f){ const d = document.createElement("div"); d.className="fact";
+  d.innerHTML = `<input value="${esc(f.id)}" class="fid"><select class="fkind">${KINDS.map(k=>`<option ${k===f.kind?"selected":""}>${k}</option>`).join("")}</select>
+  <textarea class="ftext">${esc(f.text)}</textarea><button class="btn danger" title="Delete">×</button>`;
+  d.querySelector("button").onclick=()=>d.remove(); return d; }
+function fillEditor(p){ ["name","email","phone","location","headline"].forEach(k=>$("#p_"+k).value=p[k]||"");
+  $("#p_links").value = Object.entries(p.links||{}).map(([k,v])=>`${k}=${v}`).join("\n");
+  $("#p_skills").value=(p.skills||[]).join(", "); $("#p_languages").value=(p.languages||[]).join(", ");
+  $("#facts").innerHTML=""; (p.facts||[]).forEach(f=>$("#facts").appendChild(factRow(f)));
+  $("#p_letters").value=(p.old_letters||[]).join("\n---\n");
+  $("#p_private").value=Object.entries(p.private||{}).map(([k,v])=>`${k}=${v}`).join("\n"); }
+$("#addFact").onclick=()=>{ const n = Math.max(0,...[...document.querySelectorAll(".fid")].map(i=>+i.value.slice(1)||0))+1;
+  $("#facts").appendChild(factRow({id:"F"+n,kind:"experience",text:""})); };
+const kv = t => Object.fromEntries(t.split("\n").map(l=>l.trim()).filter(l=>l.includes("=")).map(l=>[l.split("=")[0].trim(), l.slice(l.indexOf("=")+1).trim()]));
+const list = t => t.split(",").map(s=>s.trim()).filter(Boolean);
+function readEditor(id){ return { user_id:id, name:$("#p_name").value, email:$("#p_email").value, phone:$("#p_phone").value, location:$("#p_location").value,
+  headline:$("#p_headline").value, links:kv($("#p_links").value), skills:list($("#p_skills").value), languages:list($("#p_languages").value),
+  facts:[...document.querySelectorAll(".fact")].map(d=>({id:d.querySelector(".fid").value.trim(), kind:d.querySelector(".fkind").value, text:d.querySelector(".ftext").value.trim()})).filter(f=>f.text),
+  old_letters:$("#p_letters").value.split(/\n-{3,}\n/).map(s=>s.trim()).filter(Boolean), private:kv($("#p_private").value) }; }
+$("#saveProf").onclick = async () => { const id = ($("#newId").value.trim() || $("#profSel").value);
+  try { const p = readEditor(id); await api("/api/profile/"+id, {method:"PUT", headers:{"content-type":"application/json"}, body:JSON.stringify(p)});
+    $("#saveMsg").textContent="Saved."; $("#newId").value=""; await loadProfiles(id); } catch(e){ $("#saveMsg").textContent="Error: "+e.message; } };
+$("#impBtn").onclick = async () => { const id = ($("#newId").value.trim() || $("#profSel").value); const fd = new FormData();
+  fd.append("user_id", id); fd.append("urls", $("#impUrls").value); fd.append("pasted", $("#impText").value);
+  [...$("#impFiles").files].forEach(f=>fd.append("files", f)); $("#impMsg").textContent="Reading your documents…"; $("#impBtn").disabled=true;
+  try { const r = await api("/api/profile/import", {method:"POST", body:fd}); fillEditor(r.draft); $("#newId").value=id;
+    $("#impMsg").textContent="Draft ready below. Check every fact, fix or delete wrong ones, then Save."; }
+  catch(e){ $("#impMsg").textContent="Error: "+e.message; } finally { $("#impBtn").disabled=false; } };
+
+// ---------- apply
+document.querySelectorAll("input[name=target]").forEach(r=>r.onchange=()=>{ const v=document.querySelector("input[name=target]:checked").value;
+  ["ids","url","search"].forEach(k=>$("#t-"+k).classList.toggle("hidden", k!==v)); });
+$("#startBtn").onclick = async () => { if (!PROFILE) return; const t = document.querySelector("input[name=target]:checked").value;
+  const body = { user_id: PROFILE.user_id, channel: document.querySelector("input[name=channel]:checked").value, notes: $("#notes").value,
+    show_browser: $("#showBrowser").checked, job_ids: t==="ids" ? list($("#jobIds").value) : [], job_url: t==="url" ? $("#jobUrl").value.trim() : "",
+    contact_email: t==="url" ? $("#contactEmail").value.trim() : "", search: t==="search" ? $("#search").value.trim() : "", max_submissions: +$("#maxApps").value||1 };
+  $("#startMsg").textContent="Starting…";
+  try { const r = await api("/api/runs", {method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify(body)});
+    CUR_RUN = r.run_id; $("#startMsg").textContent=""; show("run"); } catch(e){ $("#startMsg").textContent="Error: "+e.message; } };
+
+// ---------- runs
+async function loadRuns(){ const rs = await api("/api/runs");
+  $("#runSel").innerHTML = rs.map(r=>`<option value="${r.run_id}">${r.run_id} · ${r.status}</option>`).join("") || "<option value=''>No runs yet</option>";
+  if (CUR_RUN) $("#runSel").value = CUR_RUN; else CUR_RUN = $("#runSel").value; poll(); }
+$("#runSel").onchange = e => { CUR_RUN = e.target.value; poll(); };
+function poll(){ clearTimeout(POLL); if (!CUR_RUN) return; api("/api/runs/"+CUR_RUN).then(r=>{ renderRun(r);
+  if (r.busy || r.status==="running") POLL = setTimeout(poll, 1000); }).catch(()=>{}); }
+const meter = (label, v, max, fmt=x=>x) => `<div class="meter"><span class="meta">${label}: ${fmt(v)} / ${fmt(max)}</span><div class="bar"><i style="width:${Math.min(100,100*v/max)}%"></i></div></div>`;
+function injections(r){ const out=[]; for (const s of r.trajectory) { const o=s.output||{}; for (const k of ["description","page","old_letters_for_style_only"]) {
+  const w=o[k]; if (w && w.suspected_injection && w.suspected_injection.length) out.push({src:w.source, hits:w.suspected_injection}); } } return out; }
+function renderRun(r){
+  $("#runHead").innerHTML = `<p style="margin:10px 0 4px"><span class="pill ${r.status}">${r.status.replace("_"," ")}</span> ${r.busy?'<span class="meta">working…</span>':""}</p>
+   <p class="meta" style="white-space:pre-wrap">${esc(r.goal)}</p>
+   <div class="meters">${meter("Steps", r.tool_calls, CFG.limits.max_steps)}${meter("Cost", r.cost_usd, CFG.limits.max_cost_usd, x=>"$"+(+x).toFixed(3))}
+   <div class="meter"><span class="meta">Tokens ${r.tokens_in+r.tokens_out} · ${r.seconds}s · applications ${r.submissions}</span></div></div>
+   ${r.stop_reason?`<div class="alert bad">Stopped: ${esc(r.stop_reason)}</div>`:""}
+   ${r.final?`<div class="alert ${r.final.status==="completed"?"ok":"warn"}"><b>${esc(r.final.status)}</b> — ${esc(r.final.summary)}</div>`:""}
+   ${Object.entries(r.documents||{}).map(([j,d])=>`<p class="meta">${esc(j)}: <a target=_blank href="/api/file?path=${encodeURIComponent(d.cv_pdf)}">CV.pdf</a> · <a target=_blank href="/api/file?path=${encodeURIComponent(d.letter_pdf)}">Letter.pdf</a></p>`).join("")}`;
+  renderGate(r);
+  $("#timeline").innerHTML = r.events.filter(e=>["thought","tool","checkpoint","decision","stopped","error","auto_retry"].includes(e.kind)).map(e=>{
+    if (e.kind==="thought") return `<li><div class="thought">${esc(e.text)}</div></li>`;
+    if (e.kind==="checkpoint") return `<li class="gate"><span class="tool">‖ ${esc(e.tool)}</span> <span class="meta">waiting for you</span></li>`;
+    if (e.kind==="decision") return `<li class="gate"><span class="meta">You: <b>${esc(e.decision)}</b> ${esc(e.reason||"")}</span></li>`;
+    if (e.kind==="auto_retry") return `<li class="err"><span class="meta">auto-retry ${esc(e.tool)}: ${esc(e.error)}</span></li>`;
+    if (e.kind==="stopped"||e.kind==="error") return `<li class="err"><b>${esc(e.reason||e.error)}</b></li>`;
+    const o = e.output||{}; return `<li class="${e.ok?"ok":"err"}"><span class="tool">${esc(e.tool)}</span> <span class="meta">#${e.step} · ${e.ms} ms ${e.error_class?"· "+esc(e.error_class):""} ${e.decision?"· "+esc(e.decision):""}</span>
+      ${!e.ok?`<div class="meta" style="color:var(--bad)">${esc(o.error)} ${o.hint?"→ "+esc(o.hint):""}</div>`:""}
+      <details><summary>input / output</summary><pre>${esc(JSON.stringify(e.input,null,1))}</pre><pre>${esc(JSON.stringify(o,null,1))}</pre></details></li>`; }).join("");
+}
+function cvHtml(cv){ if (!cv) return ""; return `<div class="cv"><b style="font-size:17px">${esc(PROFILE?.name||"")}</b><div class="meta">${esc(cv.headline)}</div>
+  ${cv.summary?.text?`<h4>Profile</h4><div>${esc(cv.summary.text)} <span class="cites">[${esc((cv.summary.fact_ids||[]).join(","))}]</span></div>`:""}
+  ${(cv.sections||[]).map(s=>`<h4>${esc(s.title)}</h4>${s.items.map(i=>`<div class="item"><b>${esc(i.heading)}</b> <span class="cites">[${esc(i.fact_ids.join(","))}]</span><br>${esc(i.text)}</div>`).join("")}`).join("")}
+  ${cv.skills?.length?`<h4>Skills</h4>${esc(cv.skills.join(", "))}`:""}${cv.languages?.length?`<h4>Languages</h4>${esc(cv.languages.join(", "))}`:""}</div>`; }
+let GATE_KEY = null;
+function renderGate(r){
+  const p = r.pending; if (!p) { $("#gate").innerHTML=""; GATE_KEY=null; return; }
+  const key = p.tool_use_id; if (GATE_KEY===key) return; GATE_KEY=key; const v = p.preview;
+  if (p.kind==="input") { $("#gate").innerHTML = `<div class="card checkpoint"><h2>The agent has a question</h2><p style="font-size:17px">${esc(v.question)}</p>
+    <label>Your answer</label><textarea id="ans"></textarea><label>If this is a new true fact about you, write it as one sentence (it becomes a citable fact)</label>
+    <input id="ansFact" placeholder="e.g. Used Docker in a university project (2025)"><div class="actions"><button class="btn primary" id="ansBtn">Send answer</button></div></div>`;
+    $("#ansBtn").onclick = async () => { await api(`/api/runs/${CUR_RUN}/answer`, {method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({text:$("#ans").value||"no", add_fact:$("#ansFact").value})}); GATE_KEY=null; poll(); };
+    return; }
+  const g = v.grounding||{errors:[],warnings:[]}; const inj = injections(r); const job = v.job||{};
+  $("#gate").innerHTML = `<div class="card checkpoint"><p class="meta" style="margin:0">Needs your approval</p><h2>${esc(v.action)}</h2>
+   <p><b>${esc(job.title)}</b> · ${esc(job.company)} · ${esc(job.location)} <span class="meta">(${esc(job.id)})</span></p>
+   ${v.to?`<p class="sans">To: <b>${esc(v.to)}</b> <span class="meta">(address on record, not taken from the posting text)</span></p>`:""}
+   ${inj.length?`<div class="alert warn"><b>Heads up:</b> this content contains text aimed at the AI. It was passed to the agent as data only, never as instructions:<br>${inj.map(i=>`<i>${esc(i.src)}</i>: “${esc(i.hits[0])}”`).join("<br>")}</div>`:""}
+   ${g.errors?.length?`<div class="alert bad">Unsupported claims (your edits):<br>${g.errors.map(esc).join("<br>")}</div>`:`<div class="alert ok">Grounding check passed: every claim traces to your profile.</div>`}
+   ${g.warnings?.length?`<div class="alert warn">${g.warnings.map(esc).join("<br>")}</div>`:""}
+   ${v.subject?`<label>Email subject</label><input id="g_subject" value="${esc(v.subject)}"><label>Email body</label><textarea id="g_body" style="min-height:120px">${esc(v.body)}</textarea>`:""}
+   ${v.values?`<h3>Form values to fill</h3><table>${Object.entries(v.values).map(([k,x])=>`<tr><td class="tool">${esc(k)}</td><td>${esc(x)}</td></tr>`).join("")}</table>
+     ${v.left_for_user?.length?`<p class="meta">Left empty for you: ${esc(v.left_for_user.join(", "))}</p>`:""}<p class="meta">The agent fills the form; it will not submit. You click Submit in the browser.</p>`:""}
+   <h3>Tailored CV</h3>${cvHtml(v.cv)}
+   <h3>Cover letter</h3><textarea id="g_letter" style="min-height:260px;font:15px/1.55 Georgia,serif">${esc(v.letter)}</textarea>
+   <p class="meta"><a target=_blank href="/api/file?path=${encodeURIComponent(v.cv_pdf||"")}">CV.pdf</a> · <a target=_blank href="/api/file?path=${encodeURIComponent(v.letter_pdf||"")}">Letter.pdf</a></p>
+   <label>Reason (if you reject or want changes)</label><input id="g_reason" placeholder="e.g. Make the letter shorter and in German">
+   <div class="actions"><button class="btn primary" id="gApprove">Approve</button><button class="btn" id="gEdit">Approve with my edits</button>
+   <button class="btn danger" id="gReject">Reject</button></div></div>`;
+  const send = async (decision, edits) => { document.querySelectorAll("#gate button").forEach(b=>b.disabled=true);
+    await api(`/api/runs/${CUR_RUN}/decision`, {method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({decision, reason:$("#g_reason").value, edits})}); GATE_KEY=null; poll(); };
+  $("#gApprove").onclick = () => send("approve");
+  $("#gReject").onclick = () => send("reject");
+  $("#gEdit").onclick = () => { const e = {letter:$("#g_letter").value}; if ($("#g_subject")) { e.subject=$("#g_subject").value; e.body=$("#g_body").value; } send("edit", e); };
+}
+
+// ---------- sandbox
+async function loadSandbox(){ const s = await api("/api/sandbox");
+  if (!s.up) { $("#sbApps").innerHTML = "<tr><td>Sandbox is not running.</td></tr>"; $("#sbMail").innerHTML=""; return; }
+  $("#sbApps").innerHTML = "<tr><th>#</th><th>User</th><th>Job</th><th>Channel</th><th>Time</th></tr>" + s.applications.map(a=>`<tr><td>${a.id}</td><td>${esc(a.user_id)}</td><td>${esc(a.job_id)}</td><td>${esc(a.channel)}</td><td>${new Date(a.created_at*1000).toLocaleTimeString()}</td></tr>`).join("");
+  $("#sbMail").innerHTML = "<tr><th>To</th><th>Subject</th><th>Body</th></tr>" + s.mail.map(m=>`<tr><td>${esc(m.recipient)}</td><td>${esc(m.subject)}</td><td>${esc(m.body.slice(0,300))}</td></tr>`).join(""); }
+$("#sbRefresh").onclick = loadSandbox; $("#sbReset").onclick = async () => { if (confirm("Delete all sandbox applications and mail?")) { await api("/api/sandbox/reset",{method:"POST"}); loadSandbox(); } };
+
+// ---------- boot
+(async () => { CFG = await api("/api/config"); $("#mode").textContent = CFG.mode + " mode"; $("#mode").classList.add(CFG.mode);
+  $("#model").textContent = CFG.model; $("#keywarn").classList.toggle("hidden", CFG.has_key); $("#boardLink").href = CFG.sandbox_url;
+  await loadProfiles(); })();
+</script>
+</body>
+</html>

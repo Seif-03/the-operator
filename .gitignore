@@ -1,0 +1,8 @@
+.env
+__pycache__/
+.pytest_cache/
+outputs/
+logs/
+data/
+sandbox/data/
+eval/results/*/logs/

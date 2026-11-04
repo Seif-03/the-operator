@@ -1,0 +1,25 @@
+{
+  "user_id": "lina-test",
+  "name": "Lina Haddad",
+  "email": "lina.haddad@mail.example",
+  "phone": "+49 151 0000000",
+  "location": "Darmstadt, Germany",
+  "links": {"linkedin": "https://www.linkedin.com/in/lina-haddad-example", "website": "https://lina-haddad.example"},
+  "headline": "Computer Science student (B.Sc.) with a focus on data and machine learning",
+  "skills": ["Python", "SQL", "PostgreSQL", "pandas", "scikit-learn", "PyTorch", "FastAPI", "React", "Git", "Docker", "Statistics", "C++", "LaTeX", "Video editing"],
+  "languages": ["Arabic (native)", "French (fluent)", "English (fluent, C1)", "German (B2)"],
+  "facts": [
+    {"id": "F1", "kind": "education", "text": "B.Sc. Computer Science, TU Darmstadt, 2023 - present (expected 2027)"},
+    {"id": "F2", "kind": "experience", "text": "Working Student, Technical Documentation at Werkwerk PLM Solutions, Darmstadt, 2025 - present: produced tutorial videos and user documentation for a PLM data exchange platform, in English and German"},
+    {"id": "F3", "kind": "project", "text": "University project: built a RAG chatbot over legal documents with Python, FastAPI and a React frontend; responsible for the FastAPI backend"},
+    {"id": "F4", "kind": "project", "text": "University project: LLM-based grader for customer support replies; built an evaluation set and measured agreement with human labels"},
+    {"id": "F5", "kind": "project", "text": "Bachelor thesis topic: speeding up public transit journey planning in C++ using bitfield-based search"},
+    {"id": "F6", "kind": "experience", "text": "Research assistant on a benchmark evaluating how API description formats affect LLM code generation, 2025 (Python, evaluation pipelines)"},
+    {"id": "F7", "kind": "education", "text": "Courses: Statistics, Machine Learning fundamentals, Algorithms and Complexity, Databases (SQL)"},
+    {"id": "F8", "kind": "other", "text": "Edits videos in CapCut; made a video for a renewable energy competition about solar energy in Tunisia"}
+  ],
+  "old_letters": [
+    "Dear Hiring Team, I am a computer science student in Darmstadt and I enjoy turning complex technical topics into clear explanations. In my current working student role I produce tutorial videos and documentation in English and German. I would be glad to bring this experience to your team. Kind regards, Lina Haddad"
+  ],
+  "private": {"passport_number": "P0000TEST1", "date_of_birth": "2002-01-01", "national_id": "TN-TEST-000"}
+}
