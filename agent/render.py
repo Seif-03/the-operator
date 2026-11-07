@@ -8,7 +8,9 @@ from xml.sax.saxutils import escape
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
+from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+from .config import ROOT
 
 _ss = getSampleStyleSheet()
 NAME = ParagraphStyle("name", parent=_ss["Title"], fontSize=20, spaceAfter=2, alignment=0)
@@ -22,11 +24,28 @@ def _p(t: str, st=BODY) -> Paragraph:
     return Paragraph(escape(t or "").replace("\n", "<br/>"), st)
 
 
+PHOTO_DIR = ROOT / "data" / "profiles"
+
+
+def photo_path(user_id: str) -> Path:
+    """Where a user's profile photo is stored (3:4 JPEG, made by the upload endpoint)."""
+    return PHOTO_DIR / f"{user_id}.jpg"
+
+
 def render_cv(profile, cv: dict, path: Path) -> Path:
     doc = SimpleDocTemplate(str(path), pagesize=A4, leftMargin=18 * mm, rightMargin=18 * mm, topMargin=16 * mm, bottomMargin=16 * mm,
                             title=f"CV {profile.name}", author=profile.name)
     contact = " · ".join(x for x in [profile.email, profile.phone, profile.location, *profile.links.values()] if x)
-    els = [_p(profile.name, NAME), _p(cv.get("headline", profile.headline), SUB), _p(contact, SUB)]
+    head = [_p(profile.name, NAME), _p(cv.get("headline", profile.headline), SUB), _p(contact, SUB)]
+    photo = photo_path(profile.user_id)
+    if getattr(profile, "photo_on_cv", False) and photo.exists():
+        # name + contact on the left, passport-style photo on the right
+        t = Table([[head, Image(str(photo), width=28 * mm, height=37.3 * mm)]], colWidths=[None, 32 * mm])
+        t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+                               ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0)]))
+        els = [t]
+    else:
+        els = head
     if (cv.get("summary") or {}).get("text"):
         els += [_p("Profile", H), _p(cv["summary"]["text"])]
     for sec in cv.get("sections", []):

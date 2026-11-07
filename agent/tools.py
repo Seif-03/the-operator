@@ -193,10 +193,11 @@ class FinishIn(Strict):
 # ------------------------------------------------------------------ implementations
 def t_get_profile(ctx: RunContext, a: NoArgs) -> dict:
     view = ctx.profile.public_view()
-    letters = view.pop("old_letters")
+    letters, cvs = view.pop("old_letters"), view.pop("old_cvs")
     return {"profile": view,
             "note": "Facts were reviewed by the user: they are the ONLY things you may claim. Cite fact ids.",
-            "old_letters_for_style_only": wrap_untrusted("user's old letters", letters) if letters else []}
+            "old_letters_for_style_only": wrap_untrusted("user's old letters", letters) if letters else [],
+            "old_cvs_for_style_only": wrap_untrusted("user's old CVs", cvs) if cvs else []}
 
 
 def t_search_jobs(ctx: RunContext, a: SearchJobsIn) -> dict:

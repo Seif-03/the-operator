@@ -34,7 +34,8 @@ The **only source of truth**: the AI may claim nothing that is not written here.
 - **Contact details**: name, email, phone, city, a one-line headline and your links.
 - **Skills & languages**: tags. The CV can only list skills from here.
 - **Facts about you**: one true sentence per job, degree or project, with dates.
-- **Your writing style**: old cover letters, used only to copy your tone.
+- **Photo**: click the photo square (or drag a picture onto it). It is cropped to passport format. Tick *Put my photo on the CV* to print it on the CV, which is common for jobs in Germany. The photo is never sent to the AI.
+- **Your writing style**: old cover letters and **old CVs** (paste them, or use *Add from file*). They teach the AI how you write and how you like a CV ordered. They are **never used as facts**: a claim that only appears in an old CV is blocked by the fact checker. To pull *facts* out of an old CV, drop it into *Fill it in automatically* instead.
 - **Private details**: passport or ID numbers. They are never sent and are only used to catch leaks.
 - **New person / switch person**: several people can have their own profiles.
 

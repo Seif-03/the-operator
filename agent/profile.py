@@ -37,11 +37,14 @@ class Profile(BaseModel):
     languages: list[str] = []
     facts: list[Fact] = []
     old_letters: list[str] = []
+    old_cvs: list[str] = []          # style examples only (structure, phrasing); never a source of facts
+    photo_on_cv: bool = False        # the photo file itself is stored next to the profile, never sent to the model
     private: dict[str, str] = {}
 
     def public_view(self) -> dict:
-        d = self.model_dump(exclude={"private"})
+        d = self.model_dump(exclude={"private", "photo_on_cv"})
         d["old_letters"] = [l[:1500] for l in self.old_letters[:3]]
+        d["old_cvs"] = [c[:2500] for c in self.old_cvs[:2]]
         return d
 
     def fact(self, fid: str) -> Fact | None:

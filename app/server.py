@@ -8,13 +8,14 @@ from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from pydantic import BaseModel, Field
 
 from agent.config import ROOT, get_settings
 from agent.llm import LLMError, make_llm
 from agent.loop import AgentRun
 from agent.profile import Profile, build_profile_with_llm, extract_text, fetch_url_text
+from agent.render import photo_path
 from agent.runner import build_goal, build_run, load_runs, save_run
 from agent.tools import text_job_id, url_job_id
 
@@ -91,7 +92,61 @@ def delete_profile(user_id: str):
     if not p.exists():
         raise HTTPException(404, "no such profile")
     p.unlink()
+    photo_path(user_id).unlink(missing_ok=True)
     return {"deleted": True}
+
+
+# ------------------------------------------------------------------ profile photo (never sent to the model)
+@app.get("/api/profile/{user_id}/photo")
+def get_photo(user_id: str):
+    _ppath(user_id)
+    f = photo_path(user_id)
+    if not f.exists():
+        raise HTTPException(404, "no photo")
+    return FileResponse(f, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+
+
+@app.post("/api/profile/{user_id}/photo")
+async def upload_photo(user_id: str, file: UploadFile = File(...)):
+    """Accepts any common image, crops it to a 3:4 portrait and stores a small JPEG."""
+    import io
+    from PIL import Image, ImageOps, UnidentifiedImageError
+    _ppath(user_id)
+    data = await file.read()
+    if len(data) > 15_000_000:
+        raise HTTPException(400, "That image is too large (max 15 MB).")
+    try:
+        img = Image.open(io.BytesIO(data))
+        img = ImageOps.exif_transpose(img).convert("RGB")      # respect phone rotation, drop transparency
+    except (UnidentifiedImageError, OSError):
+        raise HTTPException(400, "That file is not an image we can read (use JPG, PNG or WebP).")
+    img = ImageOps.fit(img, (450, 600), Image.LANCZOS, centering=(0.5, 0.35))   # 3:4, keep the face area
+    PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+    img.save(photo_path(user_id), "JPEG", quality=88)
+    return {"saved": True}
+
+
+@app.delete("/api/profile/{user_id}/photo")
+def delete_photo(user_id: str):
+    _ppath(user_id)
+    photo_path(user_id).unlink(missing_ok=True)
+    return {"deleted": True}
+
+
+@app.post("/api/extract-text")
+async def extract_file_text(file: UploadFile = File(...)):
+    """Turn a PDF/DOCX/TXT into plain text locally (no model, no cost). Used for old CVs and letters."""
+    data = await file.read()
+    if len(data) > 20_000_000:
+        raise HTTPException(400, f"{file.filename} is too large")
+    try:
+        text = extract_text(file.filename or "file.txt", data)
+    except Exception:
+        raise HTTPException(400, f"{file.filename} could not be opened (damaged, or not a real PDF/DOCX?)")
+    text = re.sub(r"\n{3,}", "\n\n", text).strip()
+    if len(text) < 30:
+        raise HTTPException(400, f"{file.filename} has no readable text (is it a scanned image?)")
+    return {"name": file.filename, "text": text[:20000]}
 
 
 LINKEDIN_URL = re.compile(r"^https?://([a-z]{2,3}\.)?(www\.)?linkedin\.com/", re.I)

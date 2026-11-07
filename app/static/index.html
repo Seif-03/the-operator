@@ -87,6 +87,15 @@ textarea{min-height:90px;resize:vertical}
 .who{display:flex;align-items:center;gap:14px}
 .avatar{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;font-weight:750;font-size:19px;color:#fff;background:linear-gradient(135deg,var(--brand),var(--signal));flex:none}
 .avatar.sm{width:30px;height:30px;font-size:12px}
+.photo{position:relative;width:76px;height:96px;border-radius:14px;border:0;padding:0;overflow:hidden;flex:none;display:grid;place-items:center;
+  background:linear-gradient(135deg,var(--brand),var(--signal));color:#fff;font-weight:750;font-size:24px}
+.photo img{width:100%;height:100%;object-fit:cover;display:block}
+.photo .cam{position:absolute;inset:auto 0 0 0;height:30px;display:grid;place-items:center;background:rgba(0,0,0,.45);opacity:0;transition:.15s}
+.photo:hover .cam,.photo:focus-visible .cam{opacity:1}
+.photo.drag{outline:3px dashed var(--brand);outline-offset:3px}
+.photo-actions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.toggle{display:flex;gap:8px;align-items:center;margin-top:12px;color:var(--ink2)} .toggle input{width:auto}
+.avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%}
 .ring{--p:0;width:64px;height:64px;border-radius:50%;background:conic-gradient(var(--brand) calc(var(--p)*1%),var(--bg2) 0);display:grid;place-items:center;flex:none}
 .ring span{width:50px;height:50px;border-radius:50%;background:var(--panel);display:grid;place-items:center;font-weight:750;font-size:14px}
 .checklist{list-style:none;padding:0;margin:10px 0 0;display:grid;gap:6px;font-size:13.5px}
@@ -99,6 +108,7 @@ textarea{min-height:90px;resize:vertical}
 .steps-mini{counter-reset:s;list-style:none;padding:0;margin:0 0 14px;display:grid;gap:8px}
 .steps-mini li{counter-increment:s;display:flex;gap:10px;font-size:14px;color:var(--ink2)}
 .steps-mini li::before{content:counter(s);flex:none;width:22px;height:22px;border-radius:50%;background:var(--brand-soft);color:var(--brand);font-weight:750;font-size:12px;display:grid;place-items:center}
+.style-head{display:flex;justify-content:space-between;align-items:flex-end;gap:10px}.style-head .btn{margin-bottom:6px}
 .sec{border-top:1px solid var(--line);padding-top:6px;margin-top:6px}
 .sec>summary{list-style:none;display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px 0;font-weight:700}
 .sec>summary::-webkit-details-marker{display:none}
@@ -275,8 +285,13 @@ dialog h2{margin:0 0 6px;font-size:19px}
   <div class="grid cols-2">
     <div class="stack">
       <div class="card">
-        <div class="who"><div class="ring" id="ring"><span id="ringTxt">0%</span></div>
-          <div><h2 id="whoName" style="margin:0">—</h2><div class="muted small" id="whoHead"></div></div></div>
+        <div class="who">
+          <button class="photo" id="photoBtn" title="Add or change your photo" aria-label="Add or change your photo"><span id="photoInit"></span><img id="photoImg" alt="" hidden><span class="cam"><svg class="i"><use href="#i-camera"/></svg></span></button>
+          <div style="min-width:0;flex:1"><h2 id="whoName" style="margin:0">—</h2><div class="muted small" id="whoHead"></div>
+            <div class="photo-actions"><button class="btn sm" id="photoUp">Upload photo</button><button class="btn sm ghost danger hidden" id="photoDel">Remove</button></div></div>
+          <div class="ring" id="ring" title="Profile readiness"><span id="ringTxt">0%</span></div></div>
+        <input type="file" id="photoFile" accept="image/*" class="hidden">
+        <label class="small toggle"><input type="checkbox" id="p_photo_on_cv"><span>Put my photo on the CV <span class="muted">(common in Germany; never sent to the AI)</span></span></label>
         <ul class="checklist" id="checklist"></ul>
       </div>
       <div class="card">
@@ -284,7 +299,7 @@ dialog h2{margin:0 0 6px;font-size:19px}
         <p class="sub">Give it what you already have. It reads everything and proposes facts for you to check.</p>
         <ol class="steps-mini">
           <li><span><b>LinkedIn:</b> open your profile → <b>More</b> → <b>Save to PDF</b>.</span></li>
-          <li><span>Drop that PDF here, plus your CV and old cover letters (PDF, DOCX, TXT).</span></li>
+          <li><span>Drop that PDF here, plus your current and <b>old CVs</b> and cover letters (PDF, DOCX, TXT). Old CVs often hold jobs and projects you forgot.</span></li>
           <li><span>Check the facts it found, fix anything wrong, then save.</span></li>
         </ol>
         <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose files">
@@ -320,8 +335,14 @@ dialog h2{margin:0 0 6px;font-size:19px}
         <button class="btn sm" id="addFact"><svg class="i"><use href="#i-plus"/></svg>Add a fact</button>
       </details>
       <details class="sec"><summary><svg class="i"><use href="#i-pen"/></svg>Your writing style<span class="count" id="letterCount"></span></summary>
-        <p class="sub">Paste old cover letters. They are only used to match your voice, never as facts. Separate letters with a line containing <span class="mono">---</span>.</p>
-        <textarea id="p_letters" style="min-height:140px"></textarea>
+        <p class="sub">Old cover letters and CVs teach the agent <b>how you write</b>: your tone, how you phrase achievements, how you order a CV.
+          They are <b>never used as facts</b>: anything you want claimed must be in “Facts about you”. Separate documents with a line containing <span class="mono">---</span>.</p>
+        <div class="style-head"><label class="f" for="p_letters">Old cover letters</label><button class="btn sm" data-addfile="#p_letters"><svg class="i"><use href="#i-upload"/></svg>Add from file</button></div>
+        <textarea id="p_letters" style="min-height:140px" placeholder="Paste a letter, or use “Add from file”"></textarea>
+        <div class="style-head"><label class="f" for="p_cvs">Old CVs</label><button class="btn sm" data-addfile="#p_cvs"><svg class="i"><use href="#i-upload"/></svg>Add from file</button></div>
+        <textarea id="p_cvs" style="min-height:140px" placeholder="Paste an old CV, or use “Add from file”"></textarea>
+        <div class="hint">Tip: to pull <b>facts</b> out of an old CV, drop it into “Fill it in automatically” instead.</div>
+        <input type="file" id="styleFile" accept=".pdf,.docx,.txt,.md" class="hidden">
       </details>
       <details class="sec"><summary><svg class="i"><use href="#i-lock"/></svg>Private details <span class="muted small" style="font-weight:500">never shared</span></summary>
         <p class="sub">Optional: passport or ID numbers, birth date. The agent never sees these. If any of them ever appears in outgoing text, the send is blocked.</p>
@@ -477,6 +498,7 @@ dialog h2{margin:0 0 6px;font-size:19px}
   <symbol id="i-external" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14 21 3"/></symbol>
   <symbol id="i-brain" viewBox="0 0 24 24"><path d="M12 5a3 3 0 0 0-5.99.15A3 3 0 0 0 4 10a3 3 0 0 0 1 5.83A3 3 0 0 0 10 18a2 2 0 0 0 2-2zM12 5a3 3 0 0 1 5.99.15A3 3 0 0 1 20 10a3 3 0 0 1-1 5.83A3 3 0 0 1 14 18a2 2 0 0 1-2-2"/></symbol>
   <symbol id="i-flag" viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1zM4 22v-7"/></symbol>
+  <symbol id="i-camera" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></symbol>
   <symbol id="i-stop" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/></symbol>
 </svg>
 
@@ -589,6 +611,54 @@ function factRow(f) {
   d.querySelector("button").onclick = () => { d.remove(); setDirty(true); countFacts(); refreshSummary(); };
   return d;
 }
+const splitDocs = t => t.split(/\n-{3,}\n/).map(s => s.trim()).filter(Boolean);
+function countStyle() {
+  const l = splitDocs($("#p_letters").value).length, c = splitDocs($("#p_cvs").value).length;
+  $("#letterCount").textContent = [l && `${l} letter${l > 1 ? "s" : ""}`, c && `${c} CV${c > 1 ? "s" : ""}`].filter(Boolean).join(" · ");
+}
+["#p_letters", "#p_cvs"].forEach(sel => $(sel).addEventListener("input", countStyle));
+
+// ---- "Add from file" for old letters / CVs: text is extracted locally (no AI, no cost)
+let STYLE_TARGET = null;
+$$("[data-addfile]").forEach(b => b.onclick = () => { STYLE_TARGET = b.dataset.addfile; $("#styleFile").click(); });
+$("#styleFile").onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f || !STYLE_TARGET) return;
+  const fd = new FormData(); fd.append("file", f);
+  try { const r = await api("/api/extract-text", {method: "POST", body: fd}); const ta = $(STYLE_TARGET);
+    ta.value = ta.value.trim() ? ta.value.trim() + "\n---\n" + r.text : r.text; countStyle(); setDirty(true); refreshSummary();
+    toast(`Added ${r.name}. Remember to save.`, "ok"); }
+  catch (err) { toast(err.message, "bad"); }
+};
+
+// ---- profile photo: stored next to the profile, shown on the CV only if the box is ticked, never sent to the AI
+let PHOTO_V = Date.now();
+const photoUrl = id => `/api/profile/${encodeURIComponent(id)}/photo?v=${PHOTO_V}`;
+function loadPhoto() {
+  const img = $("#photoImg");
+  $("#photoInit").textContent = initials(PROFILE.name);
+  img.onload = () => { img.hidden = false; $("#photoInit").hidden = true; $("#photoDel").classList.remove("hidden"); $("#photoUp").textContent = "Change photo"; };
+  img.onerror = () => { img.hidden = true; $("#photoInit").hidden = false; $("#photoDel").classList.add("hidden"); $("#photoUp").textContent = "Upload photo"; };
+  img.src = photoUrl(PROFILE.user_id);
+}
+async function uploadPhoto(file) {
+  if (!file) return;
+  if (!file.type.startsWith("image/")) return toast("Please choose an image (JPG, PNG or WebP).", "bad");
+  const fd = new FormData(); fd.append("file", file);
+  try { await api(`/api/profile/${encodeURIComponent(PROFILE.user_id)}/photo`, {method: "POST", body: fd}); PHOTO_V = Date.now(); loadPhoto(); toast("Photo saved", "ok"); }
+  catch (e) { toast(e.message, "bad"); }
+}
+$("#photoBtn").onclick = $("#photoUp").onclick = () => $("#photoFile").click();
+$("#photoFile").onchange = e => { uploadPhoto(e.target.files[0]); e.target.value = ""; };
+["dragenter", "dragover"].forEach(ev => $("#photoBtn").addEventListener(ev, e => { e.preventDefault(); $("#photoBtn").classList.add("drag"); }));
+["dragleave", "drop"].forEach(ev => $("#photoBtn").addEventListener(ev, e => { e.preventDefault(); $("#photoBtn").classList.remove("drag"); }));
+$("#photoBtn").addEventListener("drop", e => uploadPhoto(e.dataTransfer.files[0]));
+$("#photoDel").onclick = async () => {
+  if (!confirm("Remove your photo?")) return;
+  try { await api(`/api/profile/${encodeURIComponent(PROFILE.user_id)}/photo`, {method: "DELETE"}); PHOTO_V = Date.now(); loadPhoto(); toast("Photo removed"); }
+  catch (e) { toast(e.message, "bad"); }
+};
+$("#p_photo_on_cv").onchange = () => setDirty(true);
+
 const countFacts = () => { $("#factCount").textContent = $$("#facts .fact").length + " facts"; };
 $("#addFact").onclick = () => {
   const n = Math.max(0, ...$$("#facts .fid").map(e => +e.textContent.slice(1) || 0)) + 1;
@@ -602,20 +672,22 @@ function fillEditor(p) {
   SKILLS = [...(p.skills || [])]; LANGS = [...(p.languages || [])]; chips("#skillsBox", "#skillIn", SKILLS); chips("#langsBox", "#langIn", LANGS);
   $("#facts").innerHTML = ""; (p.facts || []).forEach(f => $("#facts").appendChild(factRow(f))); countFacts();
   $("#p_letters").value = (p.old_letters || []).join("\n---\n");
-  $("#letterCount").textContent = (p.old_letters || []).length ? (p.old_letters.length + " letters") : "";
-  refreshSummary();
+  $("#p_cvs").value = (p.old_cvs || []).join("\n---\n");
+  $("#p_photo_on_cv").checked = !!p.photo_on_cv;
+  countStyle(); loadPhoto(); refreshSummary();
 }
 function readEditor() {
   return { user_id: PROFILE.user_id, name: $("#p_name").value.trim(), email: $("#p_email").value.trim(), phone: $("#p_phone").value.trim(),
     location: $("#p_location").value.trim(), headline: $("#p_headline").value.trim(), links: readKv("#links"), skills: SKILLS, languages: LANGS,
     facts: $$("#facts .fact").map(d => ({id: d.querySelector(".fid").textContent.trim(), kind: d.querySelector(".fkind").value, text: d.querySelector(".ftext").value.trim()})).filter(f => f.text),
-    old_letters: $("#p_letters").value.split(/\n-{3,}\n/).map(s => s.trim()).filter(Boolean), private: readKv("#privs") };
+    old_letters: splitDocs($("#p_letters").value), old_cvs: splitDocs($("#p_cvs").value),
+    photo_on_cv: $("#p_photo_on_cv").checked, private: readKv("#privs") };
 }
 function refreshSummary() {
   if (!PROFILE) return; const p = readEditor();
   $("#whoName").textContent = p.name || "Unnamed"; $("#whoHead").textContent = p.headline || "Add a one-line headline";
   const checks = [[!!p.name && !!p.email, "Name and email"], [p.facts.length >= 3, "At least 3 facts (jobs, studies, projects)"],
-    [p.skills.length >= 3, "At least 3 skills"], [p.languages.length >= 1, "Languages you speak"], [!!p.headline, "A headline"], [p.old_letters.length >= 1, "An old letter (for your writing style)"]];
+    [p.skills.length >= 3, "At least 3 skills"], [p.languages.length >= 1, "Languages you speak"], [!!p.headline, "A headline"], [p.old_letters.length + p.old_cvs.length >= 1, "An old letter or CV (for your writing style)"]];
   const pct = Math.round(100 * checks.filter(c => c[0]).length / checks.length);
   $("#ring").style.setProperty("--p", pct); $("#ringTxt").textContent = pct + "%";
   $("#checklist").innerHTML = checks.map(([ok, t]) => `<li class="${ok ? "done" : ""}">${icon(ok ? "check" : "plus")}${t}</li>`).join("");
@@ -670,7 +742,8 @@ $("#impBtn").onclick = async () => {
 
 /* =================================================================== apply */
 async function enterApply() {
-  $("#applyWho").textContent = PROFILE ? (PROFILE.name || PROFILE.user_id) : "nobody yet"; $("#applyAvatar").textContent = initials(PROFILE?.name);
+  $("#applyWho").textContent = PROFILE ? (PROFILE.name || PROFILE.user_id) : "nobody yet"; const av = $("#applyAvatar"); av.textContent = initials(PROFILE?.name);
+  if (PROFILE) { const im = new Image(); im.alt = ""; im.onload = () => { av.textContent = ""; av.appendChild(im); }; im.src = photoUrl(PROFILE.user_id); }
   if (!JOBS.length) await loadJobs(); updateApply();
 }
 $("#changeWho").onclick = e => { e.preventDefault(); show("profile"); };
@@ -793,7 +866,7 @@ function stepperState(r) {
 function injectionHits(r) {
   const out = [];
   for (const s of r.trajectory) { const o = s.output || {};
-    for (const k of ["description", "page", "old_letters_for_style_only"]) { const w = o[k];
+    for (const k of ["description", "page", "old_letters_for_style_only", "old_cvs_for_style_only"]) { const w = o[k];
       if (w && w.suspected_injection?.length) out.push({src: w.source, hits: w.suspected_injection}); } }
   return out;
 }
@@ -826,7 +899,7 @@ function renderFeed(r) {
     else if (e.kind === "stopped" || e.kind === "error") items.push(`<li class="err"><span class="ic">${icon("stop")}</span><div><div class="ttl">Stopped</div><div class="d">${esc(e.reason || e.error)}</div></div></li>`);
     else if (e.kind === "tool") {
       const o = e.output || {}, lbl = (LABEL[e.tool] || (() => e.tool))(e.input || {}, o);
-      const inj = ["description", "page", "old_letters_for_style_only"].map(k => o[k]?.suspected_injection?.length).some(Boolean);
+      const inj = ["description", "page", "old_letters_for_style_only", "old_cvs_for_style_only"].map(k => o[k]?.suspected_injection?.length).some(Boolean);
       const rejected = e.decision === "rejected";
       items.push(`<li class="${e.ok ? "ok" : "err"}"><span class="ic">${icon(e.ok ? (TOOL_ICON[e.tool] || "check") : "x")}</span><div>
         <div class="ttl">${rejected ? "Not done (you said no): " : !e.ok ? "Tried: " : ""}${esc(lbl)}</div>
