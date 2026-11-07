@@ -82,32 +82,83 @@ def save_profile(user_id: str, profile: Profile):
     return {"saved": True}
 
 
+@app.delete("/api/profile/{user_id}")
+def delete_profile(user_id: str):
+    p = _ppath(user_id)
+    if not p.exists():
+        raise HTTPException(404, "no such profile")
+    p.unlink()
+    return {"deleted": True}
+
+
+LINKEDIN_URL = re.compile(r"^https?://([a-z]{2,3}\.)?(www\.)?linkedin\.com/", re.I)
+
+
 @app.post("/api/profile/import")
-async def import_profile(user_id: str = Form(...), urls: str = Form(""), pasted: str = Form(""),
+async def import_profile(user_id: str = Form(...), base: str = Form("{}"), urls: str = Form(""), pasted: str = Form(""),
                          files: list[UploadFile] = File(default=[])):
+    """One import for everything. LinkedIn data-export ZIP/CSVs are parsed exactly; LinkedIn 'Save to PDF',
+    CVs, letters, websites and pasted text are read by the model. Result is MERGED into the profile being edited."""
+    from agent.linkedin import merge_into, read_export, to_profile_dict
     _ppath(user_id)
+    try:
+        merged = json.loads(base or "{}")
+    except json.JSONDecodeError:
+        merged = {}
     sources: list[tuple[str, str]] = []
+    exports: list[tuple[str, bytes]] = []
     for f in files:
         data = await f.read()
-        if len(data) > 10_000_000:
+        if len(data) > 50_000_000:
             raise HTTPException(400, f"{f.filename} is too large")
-        sources.append((f.filename, extract_text(f.filename, data)))
+        name = f.filename or "file"
+        if name.lower().endswith((".zip", ".csv")):
+            exports.append((name, data))
+        else:
+            try:
+                text = extract_text(name, data)
+            except Exception:
+                raise HTTPException(400, f"{name} could not be opened (damaged or not a real PDF/DOCX?)")
+            if not text.strip():
+                raise HTTPException(400, f"{name} has no readable text (is it a scanned image?)")
+            sources.append((name, text))
     for u in [u.strip() for u in urls.splitlines() if u.strip()]:
+        if LINKEDIN_URL.match(u):
+            raise HTTPException(400, "LinkedIn pages can't be read automatically (LinkedIn blocks it). Open your profile, "
+                                     "click More (or Resources) → Save to PDF, and upload that PDF here instead.")
         try:
             sources.append((u, fetch_url_text(u)))
         except Exception as e:
-            raise HTTPException(400, f"Could not read {u}: {str(e)[:120]}. LinkedIn blocks bots: use LinkedIn's 'Save to PDF' instead.")
+            raise HTTPException(400, f"Could not read {u}: {str(e)[:120]}")
     if pasted.strip():
         sources.append(("pasted text", pasted))
-    if not sources:
-        raise HTTPException(400, "Give at least one file, link or pasted text")
+    if not (sources or exports):
+        raise HTTPException(400, "Add your LinkedIn PDF, a CV, a link or some text first.")
+    used = []
+    if exports:
+        tables = read_export(exports)
+        if not tables:
+            raise HTTPException(400, "That ZIP/CSV is not a LinkedIn data export.")
+        merged = merge_into(merged, to_profile_dict(tables))
+        used.append("LinkedIn data export")
+    if sources:
+        try:
+            draft = build_profile_with_llm(user_id, sources, _llm()).model_dump()
+        except LLMError as e:
+            raise HTTPException(400, f"Reading PDFs/CVs needs the model: {e}")
+        except Exception as e:
+            raise HTTPException(500, f"Could not read the documents: {str(e)[:200]}")
+        merged = merge_into(merged, draft)
+        used += [s[0] for s in sources]
+    merged["user_id"] = user_id
+    merged.setdefault("name", "")
+    merged.setdefault("email", "")
     try:
-        prof = build_profile_with_llm(user_id, sources, _llm())
-    except LLMError as e:
-        raise HTTPException(400, str(e))
+        prof = Profile.model_validate(merged)
     except Exception as e:
-        raise HTTPException(500, f"Could not build a profile: {str(e)[:200]}")
-    return {"draft": prof.model_dump(), "note": "Review every fact before saving. Only saved facts can be used."}
+        raise HTTPException(400, f"Imported data did not form a valid profile: {str(e)[:200]}")
+    return {"draft": prof.model_dump(), "used": used, "facts": len(prof.facts), "skills": len(prof.skills),
+            "note": "Review every fact before saving. Only saved facts can be used."}
 
 
 # ------------------------------------------------------------------ runs

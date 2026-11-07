@@ -68,17 +68,27 @@ a{color:var(--accent)}
 <section id="v-profile">
   <div class="card">
     <h2>Your profile</h2>
-    <p class="meta">This is the only source of truth. The agent may only claim what is written here, and every CV line cites a fact.</p>
-    <div class="row"><div><label>Profile</label><select id="profSel"></select></div>
-      <div><label>New profile id</label><input id="newId" placeholder="e.g. nesrine"></div></div>
+    <p class="meta">The only source of truth: the agent may only claim what is written here, and every CV line cites a fact.</p>
+    <div class="row" style="align-items:flex-end">
+      <div><label>User</label><select id="profSel"></select></div>
+      <div style="flex:0 0 auto;display:flex;gap:8px"><button class="btn" id="newProf">+ New user</button>
+        <button class="btn danger" id="delProf">Delete user</button></div>
+    </div>
+    <div id="newBox" class="hidden"><div class="row" style="align-items:flex-end">
+      <div><label>Full name of the new user</label><input id="newName" placeholder="e.g. Nesrine Belgacem"></div>
+      <div style="flex:0 0 auto"><button class="btn primary" id="newCreate">Create</button></div></div></div>
   </div>
   <div class="card">
-    <h3 style="margin-top:0">Import from your documents</h3>
-    <p class="meta">CV (PDF/DOCX), LinkedIn export (on LinkedIn: More → Save to PDF), old cover letters, your website. The model drafts facts; you review them below.</p>
-    <label>Files</label><input type="file" id="impFiles" multiple accept=".pdf,.docx,.txt,.md">
-    <label>Links (one per line)</label><textarea id="impUrls" placeholder="https://your-site.example"></textarea>
-    <label>Or paste text</label><textarea id="impText"></textarea>
-    <div class="actions"><button class="btn" id="impBtn">Draft profile from these</button><span id="impMsg" class="meta"></span></div>
+    <h3 style="margin-top:0">Fill my profile automatically</h3>
+    <ol class="meta" style="padding-left:18px;margin:6px 0 10px">
+      <li><b>LinkedIn:</b> open your LinkedIn profile → click <b>More</b> (or <b>Resources</b>) → <b>Save to PDF</b>, and drop that PDF here.</li>
+      <li>Add your CV and old cover letters too if you have them (PDF, DOCX, TXT).</li>
+      <li>Optional: your website link, or the LinkedIn data-export ZIP.</li>
+    </ol>
+    <label>Files</label><input type="file" id="impFiles" multiple accept=".pdf,.docx,.txt,.md,.zip,.csv">
+    <label>Website links (one per line)</label><textarea id="impUrls" style="min-height:50px" placeholder="https://your-site.example"></textarea>
+    <details><summary>Or paste text</summary><textarea id="impText"></textarea></details>
+    <div class="actions"><button class="btn primary" id="impBtn">Fill my profile</button><span id="impMsg" class="meta"></span></div>
   </div>
   <div class="card" id="editor">
     <div class="row"><div><label>Name</label><input id="p_name"></div><div><label>Email</label><input id="p_email"></div></div>
@@ -156,10 +166,21 @@ document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>show(b.dataset.
 
 // ---------- profile
 async function loadProfiles(sel){ const ps = await api("/api/profiles");
-  $("#profSel").innerHTML = ps.map(p=>`<option value="${esc(p.user_id)}">${esc(p.name||p.user_id)} — ${esc(p.user_id)}</option>`).join("");
+  $("#profSel").innerHTML = ps.map(p=>`<option value="${esc(p.user_id)}">${esc(p.name||p.user_id)}</option>`).join("");
   if (sel) $("#profSel").value = sel; await loadProfile($("#profSel").value); }
-async function loadProfile(id){ if (!id) return; PROFILE = await api("/api/profile/"+id); fillEditor(PROFILE); }
+async function loadProfile(id){ if (!id) return; PROFILE = await api("/api/profile/"+id); fillEditor(PROFILE);
+  $("#delProf").disabled = id === "lina-test"; $("#impMsg").textContent = ""; }
 $("#profSel").onchange = e => loadProfile(e.target.value);
+const slug = n => n.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,30) || "user";
+$("#newProf").onclick = () => { $("#newBox").classList.toggle("hidden"); $("#newName").focus(); };
+$("#newCreate").onclick = async () => { const name = $("#newName").value.trim(); if (!name) return;
+  const taken = [...$("#profSel").options].map(o=>o.value); let id = slug(name), n = 2; while (taken.includes(id)) id = slug(name)+"-"+(n++);
+  await api("/api/profile/"+id, {method:"PUT", headers:{"content-type":"application/json"}, body:JSON.stringify({user_id:id, name, email:""})});
+  $("#newName").value = ""; $("#newBox").classList.add("hidden"); await loadProfiles(id);
+  $("#impMsg").textContent = "New user created. Now add the LinkedIn PDF and click Fill my profile."; };
+$("#delProf").onclick = async () => { const id = $("#profSel").value; if (id==="lina-test") return;
+  if (!confirm(`Delete the profile of ${PROFILE?.name || id}? This cannot be undone.`)) return;
+  await api("/api/profile/"+id, {method:"DELETE"}); await loadProfiles(); };
 const KINDS = ["education","experience","project","certification","award","volunteering","other","user_confirmed"];
 function factRow(f){ const d = document.createElement("div"); d.className="fact";
   d.innerHTML = `<input value="${esc(f.id)}" class="fid"><select class="fkind">${KINDS.map(k=>`<option ${k===f.kind?"selected":""}>${k}</option>`).join("")}</select>
@@ -179,14 +200,15 @@ function readEditor(id){ return { user_id:id, name:$("#p_name").value, email:$("
   headline:$("#p_headline").value, links:kv($("#p_links").value), skills:list($("#p_skills").value), languages:list($("#p_languages").value),
   facts:[...document.querySelectorAll(".fact")].map(d=>({id:d.querySelector(".fid").value.trim(), kind:d.querySelector(".fkind").value, text:d.querySelector(".ftext").value.trim()})).filter(f=>f.text),
   old_letters:$("#p_letters").value.split(/\n-{3,}\n/).map(s=>s.trim()).filter(Boolean), private:kv($("#p_private").value) }; }
-$("#saveProf").onclick = async () => { const id = ($("#newId").value.trim() || $("#profSel").value);
+$("#saveProf").onclick = async () => { const id = $("#profSel").value;
   try { const p = readEditor(id); await api("/api/profile/"+id, {method:"PUT", headers:{"content-type":"application/json"}, body:JSON.stringify(p)});
-    $("#saveMsg").textContent="Saved."; $("#newId").value=""; await loadProfiles(id); } catch(e){ $("#saveMsg").textContent="Error: "+e.message; } };
-$("#impBtn").onclick = async () => { const id = ($("#newId").value.trim() || $("#profSel").value); const fd = new FormData();
-  fd.append("user_id", id); fd.append("urls", $("#impUrls").value); fd.append("pasted", $("#impText").value);
-  [...$("#impFiles").files].forEach(f=>fd.append("files", f)); $("#impMsg").textContent="Reading your documents…"; $("#impBtn").disabled=true;
-  try { const r = await api("/api/profile/import", {method:"POST", body:fd}); fillEditor(r.draft); $("#newId").value=id;
-    $("#impMsg").textContent="Draft ready below. Check every fact, fix or delete wrong ones, then Save."; }
+    $("#saveMsg").textContent="Saved."; await loadProfiles(id); } catch(e){ $("#saveMsg").textContent="Error: "+e.message; } };
+$("#impBtn").onclick = async () => { const id = $("#profSel").value; const fd = new FormData();
+  fd.append("user_id", id); fd.append("base", JSON.stringify(readEditor(id))); fd.append("urls", $("#impUrls").value); fd.append("pasted", $("#impText").value);
+  [...$("#impFiles").files].forEach(f=>fd.append("files", f)); $("#impMsg").textContent="Reading your documents… (up to a minute)"; $("#impBtn").disabled=true;
+  try { const r = await api("/api/profile/import", {method:"POST", body:fd}); fillEditor(r.draft);
+    $("#impMsg").textContent=`Done: ${r.facts} facts, ${r.skills} skills. Check them below (fix or delete anything wrong), then click Save profile.`;
+    $("#editor").scrollIntoView({behavior:"smooth"}); }
   catch(e){ $("#impMsg").textContent="Error: "+e.message; } finally { $("#impBtn").disabled=false; } };
 
 // ---------- apply
