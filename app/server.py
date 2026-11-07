@@ -12,24 +12,27 @@ from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
 
 from agent.config import ROOT, get_settings
-from agent.llm import AnthropicLLM, LLMError
+from agent.llm import LLMError, make_llm
 from agent.loop import AgentRun
 from agent.profile import Profile, build_profile_with_llm, extract_text, fetch_url_text
-from agent.runner import build_goal, build_run
+from agent.runner import build_goal, build_run, load_runs, save_run
+from agent.tools import text_job_id, url_job_id
 
 S = get_settings()
 PROFILE_DIR = ROOT / "data" / "profiles"
 PROFILE_DIR.mkdir(parents=True, exist_ok=True)
 SAMPLE = ROOT / "sandbox" / "profiles" / "lina.json"
+RUNS_DIR = ROOT / "data" / "runs"
 
 app = FastAPI(title="The Operator")
-RUNS: dict[str, AgentRun] = {}
-LOCKS: dict[str, threading.Lock] = {}
+# Runs are saved to data/runs/ after every step, so a restart does not lose a run waiting for approval.
+RUNS: dict[str, AgentRun] = load_runs(RUNS_DIR)
+LOCKS: dict[str, threading.Lock] = {k: threading.Lock() for k in RUNS}
 STATIC = Path(__file__).parent / "static"
 
 
 def _llm():
-    return AnthropicLLM(S.anthropic_api_key, S.model, S.anthropic_base_url)
+    return make_llm(S)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -39,7 +42,7 @@ def index():
 
 @app.get("/api/config")
 def config():
-    return {"mode": S.mode, "model": S.model, "has_key": bool(S.anthropic_api_key), "sandbox_url": S.sandbox_url,
+    return {"mode": S.mode, "model": S.model, "provider": S.provider, "model_problem": S.model_problem(), "sandbox_url": S.sandbox_url,
             "limits": {"max_steps": S.max_steps, "max_cost_usd": S.max_cost_usd, "max_submissions": S.max_submissions}}
 
 
@@ -167,6 +170,12 @@ class RunIn(BaseModel):
     job_ids: list[str] = Field(default_factory=list, max_length=10)
     job_url: str = ""
     search: str = ""
+    # a posting pasted by the user (plus what they typed about it: trusted)
+    job_text: str = Field("", max_length=30000)
+    job_title: str = Field("", max_length=150)
+    job_company: str = Field("", max_length=150)
+    job_location: str = Field("", max_length=100)
+    apply_url: str = Field("", max_length=500)
     channel: str = Field("api", pattern="^(api|email|form)$")
     notes: str = Field("", max_length=1000)
     contact_email: str = ""
@@ -176,45 +185,79 @@ class RunIn(BaseModel):
 
 def _bg(run_id: str, fn, *a, **kw):
     def work():
+        run = RUNS[run_id]
         with LOCKS[run_id]:
-            if fn:
-                fn(*a, **kw)
-            RUNS[run_id].run_until_pause()
+            try:
+                if fn:
+                    fn(*a, **kw)
+                run.run_until_pause()
+            except Exception as e:  # never leave a run stuck in "running"
+                run.status, run.stop_reason = "error", f"internal error: {str(e)[:300]}"
+            finally:
+                save_run(run, RUNS_DIR)
     threading.Thread(target=work, daemon=True).start()
 
 
 @app.post("/api/runs")
 def start_run(r: RunIn):
-    if not S.anthropic_api_key:
-        raise HTTPException(400, "Set ANTHROPIC_API_KEY in .env and restart.")
-    if not (r.job_ids or r.job_url or r.search):
-        raise HTTPException(400, "Give job ids, a job link, or a search")
+    if S.model_problem():
+        raise HTTPException(400, S.model_problem())
+    if not (r.job_ids or r.job_url or r.search or r.job_text.strip()):
+        raise HTTPException(400, "Give job ids, a job link, a pasted posting, or a search")
+    if r.job_text.strip() and len(r.job_text.strip()) < 100:
+        raise HTTPException(400, "The pasted posting is too short: paste the whole job description.")
+    if r.job_text.strip() and r.channel == "form" and not r.apply_url.strip():
+        raise HTTPException(400, "Form filling needs the link to the application form.")
+    for u in (r.job_url, r.apply_url):
+        if u and not u.strip().startswith(("http://", "https://")):
+            raise HTTPException(400, f"Links must start with http:// or https:// ({u[:60]})")
     if r.channel == "api" and S.mode == "real":
         raise HTTPException(400, "Direct submission exists only in sandbox mode. Choose email or form.")
     prof = Profile.model_validate(get_profile(r.user_id))
-    s = get_settings(max_submissions=r.max_submissions if r.search else max(1, len(r.job_ids) or 1))
+    named = len(r.job_ids) + bool(r.job_url.strip()) + bool(r.job_text.strip())
+    s = get_settings(max_submissions=r.max_submissions if r.search else max(1, named))
     # The user's request defines which jobs may receive a write. Postings cannot extend this set.
     allowed: set[str] | None = None if r.search else set(r.job_ids)
     contacts: dict[str, str] = {}
+    user_jobs: dict[str, dict] = {}
+    typed = {"title": r.job_title.strip(), "company": r.job_company.strip(), "location": r.job_location.strip()}
+    pasted_id = None
+    if r.job_text.strip():
+        pasted_id = text_job_id(r.job_text)
+        user_jobs[pasted_id] = {**typed, "text": r.job_text.strip(), "apply_url": r.apply_url.strip()}
+        if allowed is not None:
+            allowed.add(pasted_id)
+        if r.contact_email:
+            contacts[pasted_id] = r.contact_email.strip()
     if r.job_url:
-        m = re.search(r"/(?:jobs|apply)/(J-\d{4})", r.job_url)
-        jid = m.group(1) if (m and r.job_url.startswith(S.sandbox_url)) else \
-            "URL-" + __import__("hashlib").sha256(r.job_url.encode()).hexdigest()[:8]
+        url = r.job_url.strip()
+        m = re.search(r"/(?:jobs|apply)/(J-\d{4})", url)
+        jid = m.group(1) if (m and url.startswith(S.sandbox_url)) else url_job_id(url)
         if allowed is not None:
             allowed.add(jid)
         if r.contact_email:
             contacts[jid] = r.contact_email.strip()
-    run = build_run(prof, build_goal(r.job_ids, r.job_url or None, r.search or None, r.channel, r.notes, r.max_submissions),
-                    s, allowed_job_ids=allowed, contacts=contacts, form_headed=r.show_browser)
+        if jid.startswith("URL-"):
+            user_jobs[jid] = typed
+    goal = build_goal(r.job_ids, r.job_url.strip() or None, r.search or None, r.channel, r.notes, r.max_submissions,
+                      pasted_job_id=pasted_id)
+    try:
+        run = build_run(prof, goal, s, allowed_job_ids=allowed, contacts=contacts, form_headed=r.show_browser,
+                        user_jobs=user_jobs)
+    except LLMError as e:
+        raise HTTPException(400, str(e))
     RUNS[run.id] = run
     LOCKS[run.id] = threading.Lock()
+    save_run(run, RUNS_DIR)
     _bg(run.id, None)
     return {"run_id": run.id}
 
 
 @app.get("/api/runs")
 def list_runs():
-    return [{"run_id": k, "status": v.status, "goal": v.goal[:120]} for k, v in reversed(list(RUNS.items()))]
+    return [{"run_id": k, "status": RUNS[k].status, "goal": RUNS[k].goal[:120],
+             "jobs": [f"{j.get('title', '')} · {j.get('company', '')}".strip(" ·") for j in RUNS[k].ctx.jobs.values()]}
+            for k in sorted(RUNS, reverse=True)]
 
 
 @app.get("/api/runs/{run_id}")
@@ -222,7 +265,7 @@ def get_run(run_id: str):
     run = RUNS.get(run_id)
     if not run:
         raise HTTPException(404, "unknown run")
-    return {**run.summary(), "goal": run.goal, "events": run.events, "trajectory": run.trajectory,
+    return {**run.summary(), "goal": run.goal, "profile_name": run.ctx.profile.name, "events": run.events, "trajectory": run.trajectory,
             "documents": {k: {kk: vv for kk, vv in v.items() if kk in ("cv_pdf", "letter_pdf", "grounding")} for k, v in run.ctx.documents.items()},
             "busy": LOCKS[run_id].locked()}
 
@@ -259,9 +302,26 @@ def answer(run_id: str, a: AnswerIn):
 @app.get("/api/file")
 def get_file(path: str):
     p = Path(path).resolve()
-    if not str(p).startswith(str(S.output_dir.resolve())) or p.suffix != ".pdf" or not p.exists():
+    if not p.is_relative_to(S.output_dir.resolve()) or p.suffix != ".pdf" or not p.exists():
         raise HTTPException(404)
     return FileResponse(p, media_type="application/pdf")
+
+
+# ------------------------------------------------------------------ job picker (sandbox board)
+# Test postings that contain prompt-injection attacks (see sandbox/README.md). Shown as a label in the UI
+# so a demo can pick them on purpose; the agent itself never sees this list.
+SANDBOX_ATTACK_JOBS = {"J-1008", "J-1009", "J-1010", "J-1011", "J-1012", "J-1013", "J-1016"}
+
+
+@app.get("/api/jobs")
+def list_jobs(q: str = ""):
+    if S.mode != "sandbox":
+        return {"up": False, "results": []}
+    try:
+        data = httpx.get(S.sandbox_url + "/api/jobs", params={"q": q, "limit": 25}, timeout=3).json()
+    except Exception:
+        return {"up": False, "results": []}
+    return {"up": True, "results": [{**j, "attack": j["id"] in SANDBOX_ATTACK_JOBS} for j in data.get("results", [])]}
 
 
 # ------------------------------------------------------------------ sandbox view

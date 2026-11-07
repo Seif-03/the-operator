@@ -12,12 +12,15 @@ Give it your CV, LinkedIn export, website or old cover letters. It builds a revi
 
 Everything runs against a **resettable sandbox** (fake job board, application forms, mailbox) by default. `APPLY_MODE=real` switches email to SMTP and form-fill to real pages.
 
-## Setup (one command)
+## Setup (one command, Windows / macOS / Linux)
 
 ```bash
-pip install -r requirements.txt && python -m playwright install chromium && cp .env.example .env
+python install.py
 ```
-Then put your `ANTHROPIC_API_KEY` in `.env`.
+It installs the packages and the browser for form-fill mode, and creates `.env`. Then choose the model in `.env`:
+
+- **Claude (default, used for the eval):** set `ANTHROPIC_API_KEY`.
+- **Free:** set `OPERATOR_PROVIDER=openai` and an OpenAI-compatible server (Groq, OpenRouter, or a local Ollama); examples are in `.env.example`. Free models are weaker at multi-step tool use.
 
 ## Run (one command)
 
@@ -25,14 +28,15 @@ Then put your `ANTHROPIC_API_KEY` in `.env`.
 python run.py
 ```
 Open http://127.0.0.1:8000. The sandbox job board is at http://127.0.0.1:8100.
-Flow: **Profile** (import + review facts) → **Apply** (job ids / link / search + channel) → **Run** (live trajectory, approval card) → **Sandbox** (see what was written, reset).
+Runs are saved in `data/runs/`, so a run waiting for your approval survives a restart.
+Flow: **Profile** (import + review facts) → **Apply** (job ids / link / pasted posting / search + channel) → **Run** (live trajectory, approval card) → **Sandbox** (see what was written, reset).
 
 CLI alternative: `python -m agent.runner --profile sandbox/profiles/lina.json --job J-1001 --channel api`
 
 ## Tests and eval
 
 ```bash
-pytest -q                              # 24 tests: stop rule, checkpoint, idempotency, policies, form never submits
+pytest -q                              # 39 tests: stop rule, checkpoint, idempotency, policies, form never submits, saved runs
 python -m eval.run_eval                # 40 trajectory scenarios with the real model -> eval/results/<model>/
 python -m eval.run_eval --only I01,I03 # a subset
 python -m eval.run_eval --policy selftest   # harness check without an API key (not a result)

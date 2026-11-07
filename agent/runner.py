@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 
 from .config import Settings, get_settings
-from .llm import AnthropicLLM
+from .llm import LLMError, UnavailableLLM, make_llm
 from .loop import AgentRun, new_run_id
 from .profile import Profile, load_profile
 from .tools import RunContext
@@ -29,8 +29,11 @@ def make_logger(settings: Settings):
     return log
 
 
-def build_goal(job_ids: list[str], job_url: str | None, search: str | None, channel: str, extra: str = "", k: int = 1) -> str:
+def build_goal(job_ids: list[str], job_url: str | None, search: str | None, channel: str, extra: str = "", k: int = 1,
+               pasted_job_id: str | None = None) -> str:
     parts = []
+    if pasted_job_id:
+        parts.append(f"Apply for the job posting I pasted. Read it with get_job (job id {pasted_job_id}).")
     if job_ids:
         parts.append(f"Apply for job(s): {', '.join(job_ids)}.")
     if job_url:
@@ -45,12 +48,38 @@ def build_goal(job_ids: list[str], job_url: str | None, search: str | None, chan
 
 def build_run(profile: Profile, goal: str, settings: Settings | None = None, llm=None,
               allowed_job_ids: set[str] | None = None, contacts: dict[str, str] | None = None,
-              run_id: str | None = None, form_headed: bool = False) -> AgentRun:
+              run_id: str | None = None, form_headed: bool = False, user_jobs: dict[str, dict] | None = None) -> AgentRun:
     s = settings or get_settings()
-    llm = llm or AnthropicLLM(s.anthropic_api_key, s.model, s.anthropic_base_url)
+    llm = llm or make_llm(s)
     ctx = RunContext(settings=s, profile=profile.model_copy(deep=True), run_id=run_id or new_run_id(),
-                     allowed_job_ids=allowed_job_ids, user_contact_emails=contacts or {}, form_headed=form_headed)
+                     allowed_job_ids=allowed_job_ids, user_contact_emails=contacts or {}, form_headed=form_headed,
+                     user_jobs=user_jobs or {})
     return AgentRun(ctx, llm, goal, s, logger=make_logger(s))
+
+
+# ------------------------------------------------------------ runs saved to disk (data/runs/<run_id>.json)
+def save_run(run: AgentRun, runs_dir: Path) -> None:
+    runs_dir.mkdir(parents=True, exist_ok=True)
+    tmp = runs_dir / f"{run.id}.json.tmp"
+    tmp.write_text(json.dumps(run.to_state(), ensure_ascii=False, default=str), encoding="utf-8")
+    tmp.replace(runs_dir / f"{run.id}.json")     # write-then-rename: never leaves a half-written file
+
+
+def load_runs(runs_dir: Path) -> dict[str, AgentRun]:
+    """Reload every saved run. Runs waiting for approval can be approved after a restart."""
+    try:
+        llm = make_llm(get_settings())
+    except LLMError as e:
+        llm = UnavailableLLM(str(e))
+    runs = {}
+    for f in sorted(runs_dir.glob("*.json")):
+        try:
+            state = json.loads(f.read_text(encoding="utf-8"))
+            s = get_settings(max_submissions=state.get("max_submissions", 1))
+            runs[state["run_id"]] = AgentRun.from_state(state, s, llm, logger=make_logger(s))
+        except Exception as e:  # one damaged file must not stop the app
+            print(f"Skipping saved run {f.name}: {e}")
+    return runs
 
 
 def main():
@@ -63,6 +92,8 @@ def main():
     ap.add_argument("--notes", default="")
     a = ap.parse_args()
     s = get_settings()
+    if s.model_problem():
+        raise SystemExit(s.model_problem())
     prof = load_profile(a.profile)
     allowed = set(a.job) if a.job else None
     run = build_run(prof, build_goal(a.job, a.url, a.search, a.channel, a.notes), s, allowed_job_ids=allowed)

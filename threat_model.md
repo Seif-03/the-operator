@@ -14,7 +14,8 @@
 | Entry point | Tool | Who controls it |
 |---|---|---|
 | Job posting description | `get_job` | Anyone who can post a job (attacker) |
-| Job web page | `read_job_url` | Any website |
+| Job web page (incl. its embedded schema.org JobPosting data) | `read_job_url` | Any website |
+| Posting text pasted by the user (`TXT-…` jobs) | `get_job` | Whoever wrote the posting: the user only copied it. The title, company, location, email and form link the user **types** are trusted; the pasted text is not |
 | Application form page (labels, hidden text) | `inspect_application_form` | The site |
 | User's website / LinkedIn export / old letters | profile import, `get_profile` (old letters) | Usually the user, but pages can be compromised or copied |
 | Error messages from services | all tools | Service owner |

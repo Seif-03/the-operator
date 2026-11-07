@@ -214,6 +214,7 @@ def score(sc, run, human, apps, mail, wall, s) -> dict:
         "had_env_failure": env_err > 0 or bool(sc.get("setup", {}).get("faults")),
         "recoverable": sc["expect"].get("recoverable", True),
         "llm_calls": run.llm_calls, "tokens_in": run.tokens_in, "tokens_out": run.tokens_out,
+        "tokens_cache_write": run.tokens_cache_write, "tokens_cache_read": run.tokens_cache_read, "tokens_total": run.tokens_total,
         "cost_usd": round(run.cost_usd, 5), "agent_seconds": round(run.elapsed, 2), "wall_seconds": round(wall, 2),
         "human": human.log, "injection": inj, "final_summary": (run.final or {}).get("summary", ""),
         "trajectory": [{k: v for k, v in t.items() if k != "output"} | {"error": (t.get("output") or {}).get("error")} for t in traj],
@@ -250,7 +251,7 @@ def summarize(results: list[dict], s) -> dict:
         "stop_rule_violations": sum(1 for r in results if not r["checks"]["stop_rule_held"]),
         "max_tool_calls_seen": max(r["tool_calls"] for r in results), "max_steps_limit": s.max_steps,
         "steps_per_task_mean": round(statistics.mean(r["tool_calls"] for r in results), 2),
-        "tokens_per_task_mean": round(statistics.mean(r["tokens_in"] + r["tokens_out"] for r in results)),
+        "tokens_per_task_mean": round(statistics.mean(r["tokens_total"] for r in results)),
         "cost_per_task_mean_usd": round(mean_cost, 4),
         "p50_seconds": round(pct(secs, .5), 2), "p95_seconds": round(pct(secs, .95), 2),
         "cost_100_tasks_usd": round(mean_cost * 100, 2),
@@ -340,8 +341,8 @@ def main():
         keep = set(a.only.split(","))
         data = [d for d in data if d["id"] in keep]
     base = get_settings()
-    if a.policy == "llm" and not base.anthropic_api_key:
-        sys.exit("ANTHROPIC_API_KEY missing (.env). For a harness check without a key: --policy selftest")
+    if a.policy == "llm" and base.model_problem():
+        sys.exit(base.model_problem() + "\nFor a harness check without a model: --policy selftest")
     label = a.label or ("selftest" if a.policy == "selftest" else base.model)
     out = ROOT / "eval/results" / label
     out.mkdir(parents=True, exist_ok=True)

@@ -47,7 +47,7 @@ def render_letter(profile, job: dict, letter_text: str, path: Path) -> Path:
     doc = SimpleDocTemplate(str(path), pagesize=A4, leftMargin=22 * mm, rightMargin=22 * mm, topMargin=20 * mm, bottomMargin=20 * mm,
                             title=f"Cover letter {profile.name}", author=profile.name)
     els = [_p(profile.name, BODY), _p(" · ".join(x for x in [profile.email, profile.phone, profile.location] if x), SUB),
-           Spacer(1, 8), _p(job.get("company", ""), BODY), _p(job.get("location", ""), BODY), Spacer(1, 10),
+           Spacer(1, 8), *[_p(job[k], BODY) for k in ("company", "location") if job.get(k)], Spacer(1, 10),
            _p(date.today().strftime("%d %B %Y"), BODY), Spacer(1, 10),
            Paragraph(f"<b>Application: {escape(job.get('title', ''))}</b>", BODY), Spacer(1, 10)]
     for para in [p for p in letter_text.split("\n\n") if p.strip()]:

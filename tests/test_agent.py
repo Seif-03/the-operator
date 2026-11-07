@@ -31,6 +31,7 @@ def test_stop_rule_identical_calls(settings, profile):
 
 
 def test_stop_rule_cost_budget(settings, profile):
+    settings.price_in_per_mtok, settings.price_out_per_mtok = 3.0, 15.0   # fixed here: independent of .env
     settings.max_cost_usd = 0.01        # each scripted call ~ $0.006
     run = run_with(lambda msgs, i: [("search_jobs", {"query": f"data {i}"})], settings, profile)
     assert run.run_until_pause() == "stopped"

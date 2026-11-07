@@ -4,300 +4,947 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>The Operator</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='12' fill='none' stroke='%235b4fe0' stroke-width='5'/%3E%3Ccircle cx='16' cy='16' r='3.5' fill='%23ff8a3d'/%3E%3C/svg%3E">
 <style>
-:root{--bg:#f6f5f1;--panel:#fff;--ink:#1b1f2a;--muted:#6b7080;--line:#e3e1da;--accent:#2f5d50;--accent-ink:#fff;
---warn:#a35a00;--warn-bg:#fff4e0;--bad:#b42318;--bad-bg:#fdecea;--ok:#1e7a46;--ok-bg:#e7f6ec;--chip:#efede7;--mono:ui-monospace,SFMono-Regular,Menlo,monospace}
-@media (prefers-color-scheme:dark){:root{--bg:#14161b;--panel:#1c1f26;--ink:#e8e9ee;--muted:#9aa0ae;--line:#2c3039;--accent:#7cc4a8;--accent-ink:#0f1a15;
---warn:#f2b35a;--warn-bg:#2d2414;--bad:#ff8a80;--bad-bg:#2f1a1a;--ok:#7ed3a0;--ok-bg:#16291e;--chip:#272a33}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Iowan Old Style","Palatino Linotype",Georgia,serif}
-.sans,button,input,textarea,select,nav,.pill,.meta,table{font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
-header{display:flex;align-items:center;gap:14px;padding:14px 24px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
-header h1{font-size:22px;margin:0;letter-spacing:.2px}header h1 span{color:var(--accent)}
-.badge{font:600 11px system-ui;padding:3px 8px;border-radius:99px;background:var(--chip);color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
-.badge.sandbox{background:var(--ok-bg);color:var(--ok)}.badge.real{background:var(--bad-bg);color:var(--bad)}
-nav{display:flex;gap:4px;margin-left:auto}nav button{background:none;border:0;padding:8px 12px;border-radius:8px;color:var(--muted);cursor:pointer;font-size:14px}
-nav button.on{background:var(--chip);color:var(--ink);font-weight:600}
-main{max-width:1060px;margin:0 auto;padding:24px 16px 80px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:18px}
-h2{font-size:20px;margin:0 0 4px}h3{font-size:16px;margin:18px 0 8px}.meta{color:var(--muted);font-size:13px}
-label{display:block;font:600 13px system-ui;margin:12px 0 4px}
-input,textarea,select{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font-size:14px}
-textarea{min-height:80px;resize:vertical}
-button.btn{padding:9px 16px;border-radius:9px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer;font-size:14px;font-weight:600}
-button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}button.danger{color:var(--bad)}
-button:disabled{opacity:.5;cursor:default}
-.row{display:flex;gap:12px;flex-wrap:wrap}.row>*{flex:1;min-width:200px}
-.seg{display:flex;gap:6px;flex-wrap:wrap}.seg label{flex:1;min-width:150px;margin:0;border:1px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer;font-weight:500}
-.seg input{width:auto;margin-right:6px}.seg label:has(input:checked){border-color:var(--accent);background:var(--chip)}
-.fact{display:grid;grid-template-columns:52px 130px 1fr 34px;gap:8px;align-items:start;margin-bottom:6px}
-.fact input,.fact select,.fact textarea{font-size:13px}.fact textarea{min-height:40px}
-.pill{display:inline-block;font:600 12px system-ui;padding:3px 10px;border-radius:99px;background:var(--chip)}
-.pill.running{background:#e8eefc;color:#2a4fb0}.pill.done{background:var(--ok-bg);color:var(--ok)}.pill.stopped,.pill.error{background:var(--bad-bg);color:var(--bad)}
-.pill.awaiting_approval,.pill.awaiting_input{background:var(--warn-bg);color:var(--warn)}
-.timeline{list-style:none;padding:0;margin:0}.timeline li{border-left:2px solid var(--line);padding:4px 0 10px 16px;position:relative}
-.timeline li::before{content:"";position:absolute;left:-6px;top:10px;width:10px;height:10px;border-radius:50%;background:var(--line)}
-.timeline li.ok::before{background:var(--ok)}.timeline li.err::before{background:var(--bad)}.timeline li.gate::before{background:var(--warn)}
-.tool{font:600 13px var(--mono)}.thought{color:var(--muted);font-style:italic;font-size:14px}
-details summary{cursor:pointer;color:var(--muted);font:13px system-ui}pre{font:12px/1.45 var(--mono);white-space:pre-wrap;word-break:break-word;background:var(--bg);padding:10px;border-radius:8px;max-height:280px;overflow:auto}
-.alert{border-radius:10px;padding:10px 14px;margin:10px 0;font:14px system-ui}.alert.warn{background:var(--warn-bg);color:var(--warn)}
-.alert.bad{background:var(--bad-bg);color:var(--bad)}.alert.ok{background:var(--ok-bg);color:var(--ok)}
-.checkpoint{border:2px solid var(--warn)}.cv{border:1px solid var(--line);border-radius:10px;padding:16px 20px;background:var(--bg)}
-.cv h4{margin:12px 0 4px;color:var(--accent);font-size:14px;text-transform:uppercase;letter-spacing:.5px}.cv .item{margin-bottom:6px}
-.cites{font:11px var(--mono);color:var(--muted)}
-.meters{display:flex;gap:18px;flex-wrap:wrap;margin-top:8px}.meter{min-width:140px}.bar{height:6px;background:var(--chip);border-radius:3px;overflow:hidden;margin-top:4px}
-.bar i{display:block;height:100%;background:var(--accent)}
-table{width:100%;border-collapse:collapse;font-size:13px}td,th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
-.hidden{display:none}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
-a{color:var(--accent)}
-@media (max-width:640px){.fact{grid-template-columns:44px 1fr 30px}.fact select{grid-column:2}.fact textarea{grid-column:1/-1}header{padding:12px 16px}nav{margin-left:0}}
+:root{
+  --bg:#f5f4fb; --bg2:#eceaf7; --panel:#ffffff; --ink:#191733; --ink2:#4a4766; --muted:#7a7794; --line:#e3e0f0;
+  --brand:#5b4fe0; --brand-ink:#ffffff; --brand-soft:#ecebfd; --signal:#ff8a3d;
+  --ok:#14804a; --ok-soft:#e3f6ea; --warn:#a35300; --warn-soft:#fff1de; --bad:#c0262d; --bad-soft:#fde8e8;
+  --run:#2b6cd4; --run-soft:#e5eefc; --paper:#fffdf8; --paper-ink:#24221f;
+  --shadow:0 1px 2px rgba(25,23,51,.06),0 6px 24px rgba(25,23,51,.06); --radius:16px;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif; --mono:ui-monospace,"Cascadia Code",Consolas,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#12111c; --bg2:#1a1828; --panel:#1d1b2c; --ink:#ecebf7; --ink2:#c3c0db; --muted:#8f8ca8; --line:#2e2b44;
+  --brand:#8e85ff; --brand-ink:#12111c; --brand-soft:#26234a; --signal:#ffa264;
+  --ok:#5fd394; --ok-soft:#14291e; --warn:#ffbe6b; --warn-soft:#2e2312; --bad:#ff8585; --bad-soft:#331a1d;
+  --run:#7fb0ff; --run-soft:#172338; --paper:#f7f4ec; --paper-ink:#24221f; --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 28px rgba(0,0,0,.25)}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh}
+a{color:var(--brand)}
+button{font:inherit;cursor:pointer}
+:focus-visible{outline:3px solid color-mix(in srgb,var(--brand) 55%,transparent);outline-offset:2px;border-radius:8px}
+.hidden{display:none!important}
+.muted{color:var(--muted)} .small{font-size:13px} .mono{font-family:var(--mono)}
+svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-3px}
+
+/* ---------- top bar */
+.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.top-in{max-width:1180px;margin:0 auto;padding:10px 20px;display:flex;align-items:center;gap:16px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:750;font-size:18px;letter-spacing:-.2px;white-space:nowrap}
+.brand svg{width:30px;height:30px}
+.tabs{display:flex;gap:4px;margin:0 auto;background:var(--bg2);padding:4px;border-radius:999px}
+.tab{display:flex;align-items:center;gap:7px;border:0;background:none;color:var(--ink2);padding:8px 16px;border-radius:999px;font-weight:600;font-size:14px;position:relative}
+.tab:hover{color:var(--ink)}
+.tab.on{background:var(--panel);color:var(--ink);box-shadow:var(--shadow)}
+.tab .badge{position:absolute;top:2px;right:6px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--signal);color:#fff;font-size:11px;line-height:18px;text-align:center}
+.env{display:flex;align-items:center;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:var(--bg2);color:var(--ink2);font-size:12.5px;font-weight:600;white-space:nowrap}
+.chip.safe{background:var(--ok-soft);color:var(--ok)} .chip.real{background:var(--bad-soft);color:var(--bad)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--muted)} .dot.ok{background:var(--ok)} .dot.bad{background:var(--bad)}
+
+/* ---------- layout */
+main{max-width:1180px;margin:0 auto;padding:24px 20px 120px}
+.hero{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin:6px 0 20px}
+.hero h1{font-size:28px;line-height:1.15;letter-spacing:-.6px;margin:0 0 4px}
+.hero p{margin:0;color:var(--muted);max-width:620px}
+.grid{display:grid;gap:20px}
+.cols-2{grid-template-columns:minmax(0,5fr) minmax(0,7fr)}
+.cols-run{grid-template-columns:290px minmax(0,1fr)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px}
+.card h2{font-size:17px;margin:0 0 4px;letter-spacing:-.2px;display:flex;align-items:center;gap:8px}
+.card h3{font-size:14px;margin:18px 0 8px;color:var(--ink2);text-transform:uppercase;letter-spacing:.6px}
+.card .sub{color:var(--muted);font-size:14px;margin:0 0 14px}
+.stack>*+*{margin-top:20px}
+
+/* ---------- forms */
+label.f{display:block;font-weight:600;font-size:13px;color:var(--ink2);margin:14px 0 6px}
+input[type=text],input[type=email],input[type=url],input[type=number],input:not([type]),textarea,select{width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);font:inherit;font-size:14.5px;transition:border-color .15s}
+input:focus,textarea:focus,select:focus{border-color:var(--brand);outline:none}
+textarea{min-height:90px;resize:vertical}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.hint{font-size:12.5px;color:var(--muted);margin-top:5px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 18px;border-radius:11px;border:1.5px solid var(--line);background:var(--panel);color:var(--ink);font-weight:650;font-size:14.5px;transition:transform .05s,background .15s,border-color .15s;white-space:nowrap}
+.btn:hover{border-color:var(--brand)} .btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)} .btn.primary:hover{filter:brightness(1.07)}
+.btn.big{padding:13px 24px;font-size:16px;border-radius:13px}
+.btn.ghost{background:none;border-color:transparent;color:var(--ink2)} .btn.ghost:hover{background:var(--bg2)}
+.btn.danger{color:var(--bad)} .btn.danger:hover{border-color:var(--bad)}
+.btn.sm{padding:6px 11px;font-size:13px;border-radius:9px}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:18px}
+
+/* ---------- alerts */
+.alert{display:flex;gap:12px;align-items:flex-start;border-radius:12px;padding:12px 14px;margin:12px 0;font-size:14px}
+.alert svg.i{margin-top:2px} .alert b{display:block;margin-bottom:2px}
+.alert.ok{background:var(--ok-soft);color:var(--ok)} .alert.warn{background:var(--warn-soft);color:var(--warn)}
+.alert.bad{background:var(--bad-soft);color:var(--bad)} .alert.info{background:var(--brand-soft);color:var(--brand)}
+.alert .alert-body{color:var(--ink)} .alert ul{margin:4px 0 0;padding-left:18px}
+
+/* ---------- profile */
+.who{display:flex;align-items:center;gap:14px}
+.avatar{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;font-weight:750;font-size:19px;color:#fff;background:linear-gradient(135deg,var(--brand),var(--signal));flex:none}
+.avatar.sm{width:30px;height:30px;font-size:12px}
+.ring{--p:0;width:64px;height:64px;border-radius:50%;background:conic-gradient(var(--brand) calc(var(--p)*1%),var(--bg2) 0);display:grid;place-items:center;flex:none}
+.ring span{width:50px;height:50px;border-radius:50%;background:var(--panel);display:grid;place-items:center;font-weight:750;font-size:14px}
+.checklist{list-style:none;padding:0;margin:10px 0 0;display:grid;gap:6px;font-size:13.5px}
+.checklist li{display:flex;gap:8px;align-items:center;color:var(--muted)} .checklist li.done{color:var(--ink2)}
+.checklist li.done svg{color:var(--ok)}
+.drop{border:2px dashed var(--line);border-radius:14px;padding:26px 16px;text-align:center;background:var(--bg);transition:.15s;cursor:pointer}
+.drop:hover,.drop.over{border-color:var(--brand);background:var(--brand-soft)}
+.drop svg.i{width:30px;height:30px;color:var(--brand)} .drop b{display:block;margin:8px 0 2px}
+.files{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.steps-mini{counter-reset:s;list-style:none;padding:0;margin:0 0 14px;display:grid;gap:8px}
+.steps-mini li{counter-increment:s;display:flex;gap:10px;font-size:14px;color:var(--ink2)}
+.steps-mini li::before{content:counter(s);flex:none;width:22px;height:22px;border-radius:50%;background:var(--brand-soft);color:var(--brand);font-weight:750;font-size:12px;display:grid;place-items:center}
+.sec{border-top:1px solid var(--line);padding-top:6px;margin-top:6px}
+.sec>summary{list-style:none;display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px 0;font-weight:700}
+.sec>summary::-webkit-details-marker{display:none}
+.sec>summary .count{margin-left:auto;color:var(--muted);font-weight:500;font-size:13px}
+.sec>summary::after{content:"";width:8px;height:8px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);margin:0 4px 0 8px;transition:.2s}
+.sec[open]>summary::after{transform:rotate(-135deg)}
+.chips-in{display:flex;flex-wrap:wrap;gap:6px;padding:7px;border:1.5px solid var(--line);border-radius:10px;min-height:46px;align-items:center}
+.chips-in:focus-within{border-color:var(--brand)}
+.chips-in input{border:0!important;flex:1;min-width:140px;padding:5px 6px!important;background:none}
+.tag{display:inline-flex;align-items:center;gap:4px;background:var(--brand-soft);color:var(--brand);padding:4px 6px 4px 11px;border-radius:999px;font-size:13px;font-weight:600}
+.tag button{border:0;background:none;color:inherit;padding:0 4px;font-size:15px;line-height:1;opacity:.7} .tag button:hover{opacity:1}
+.fact{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:start;padding:12px;border:1px solid var(--line);border-radius:12px;margin-bottom:8px;background:var(--bg)}
+.fact .fid{font:600 12px var(--mono);color:var(--muted);padding-top:9px;width:34px}
+.fact select{width:auto;padding:5px 8px;font-size:12.5px;font-weight:650;border-radius:999px;margin-bottom:6px}
+.fact textarea{min-height:52px;font-size:14px;background:var(--panel)}
+.kv{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr) auto;gap:8px;margin-bottom:8px}
+.savebar{position:fixed;left:50%;bottom:22px;transform:translate(-50%,calc(100% + 80px));visibility:hidden;transition:transform .25s,visibility .25s;z-index:30;background:var(--ink);color:var(--bg);border-radius:14px;padding:10px 10px 10px 18px;display:flex;align-items:center;gap:12px;box-shadow:0 10px 40px rgba(0,0,0,.25);max-width:calc(100% - 32px)}
+.savebar.show{transform:translate(-50%,0);visibility:visible}
+.savebar .btn.ghost{color:var(--bg)} .savebar .btn.ghost:hover{background:rgba(255,255,255,.12)}
+
+/* ---------- apply */
+.step{display:flex;gap:16px}
+.step-n{flex:none;width:34px;height:34px;border-radius:50%;background:var(--brand);color:var(--brand-ink);display:grid;place-items:center;font-weight:800}
+.step-body{flex:1;min-width:0}
+.step-body>h2{font-size:18px;margin:4px 0 4px}
+.choices{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:14px 0 4px}
+.choice{position:relative;text-align:left;border:1.5px solid var(--line);background:var(--panel);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:6px;color:var(--ink);transition:.15s}
+.choice:hover{border-color:var(--brand)}
+.choice.on{border-color:var(--brand);background:var(--brand-soft);box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 18%,transparent)}
+.choice .ic{width:36px;height:36px;border-radius:10px;background:var(--bg2);display:grid;place-items:center;color:var(--brand)}
+.choice.on .ic{background:var(--panel)}
+.choice b{font-size:15px} .choice span{font-size:13px;color:var(--muted);line-height:1.4}
+.jobs{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;margin-top:12px;max-height:470px;overflow:auto;padding:2px}
+.job{text-align:left;border:1.5px solid var(--line);background:var(--panel);border-radius:13px;padding:13px 14px;color:var(--ink);position:relative;transition:.15s}
+.job:hover{border-color:var(--brand)}
+.job.on{border-color:var(--brand);background:var(--brand-soft)}
+.job .t{font-weight:700;font-size:14.5px;line-height:1.3;padding-right:24px}
+.job .c{font-size:13px;color:var(--muted);margin-top:3px}
+.job .tick{position:absolute;top:12px;right:12px;width:20px;height:20px;border-radius:6px;border:1.5px solid var(--line);display:grid;place-items:center;background:var(--panel)}
+.job.on .tick{background:var(--brand);border-color:var(--brand);color:#fff}
+.job .tick svg{width:13px;height:13px;stroke-width:3}
+.job .meta{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px}
+.mini{font-size:11.5px;font-weight:650;padding:2px 8px;border-radius:999px;background:var(--bg2);color:var(--ink2)}
+.mini.atk{background:var(--warn-soft);color:var(--warn)}
+.summary{position:sticky;bottom:16px;z-index:10;margin-top:22px;display:flex;align-items:center;gap:16px;justify-content:space-between;flex-wrap:wrap;background:var(--ink);color:var(--bg);border-radius:16px;padding:14px 14px 14px 20px;box-shadow:0 12px 40px rgba(25,23,51,.25)}
+.summary .s{font-size:14.5px} .summary .s b{color:#fff}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .summary .s b{color:var(--bg)}}
+
+/* ---------- runs */
+.runlist{display:flex;flex-direction:column;gap:8px}
+.runitem{text-align:left;border:1.5px solid var(--line);background:var(--panel);border-radius:13px;padding:11px 12px;color:var(--ink);transition:.15s}
+.runitem:hover{border-color:var(--brand)} .runitem.on{border-color:var(--brand);box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 15%,transparent)}
+.runitem .t{font-weight:650;font-size:14px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical}
+.runitem .when{font-size:12px;color:var(--muted);margin-top:5px;display:flex;justify-content:space-between;align-items:center;gap:6px}
+.status{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;white-space:nowrap}
+.status::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.status.running{background:var(--run-soft);color:var(--run)} .status.running::before{animation:pulse 1.2s infinite}
+.status.awaiting_approval,.status.awaiting_input{background:var(--warn-soft);color:var(--warn)} .status.awaiting_approval::before,.status.awaiting_input::before{animation:pulse 1.2s infinite}
+.status.done{background:var(--ok-soft);color:var(--ok)} .status.stopped,.status.error{background:var(--bad-soft);color:var(--bad)}
+@keyframes pulse{50%{opacity:.25}}
+.runhead{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
+.runhead h2{font-size:20px;margin:0 0 6px;letter-spacing:-.3px}
+.stepper{display:flex;margin:20px 0 6px;gap:0}
+.st{flex:1;position:relative;text-align:center;font-size:12px;color:var(--muted);font-weight:600;padding-top:34px}
+.st::before{content:"";position:absolute;top:13px;left:-50%;right:50%;height:3px;background:var(--line)}
+.st:first-child::before{display:none}
+.st .b{position:absolute;top:0;left:50%;transform:translateX(-50%);width:29px;height:29px;border-radius:50%;background:var(--bg2);border:2px solid var(--line);display:grid;place-items:center;z-index:1;color:var(--muted)}
+.st .b svg{width:14px;height:14px;stroke-width:3}
+.st.done{color:var(--ink2)} .st.done::before{background:var(--brand)} .st.done .b{background:var(--brand);border-color:var(--brand);color:#fff}
+.st.now{color:var(--ink)} .st.now::before{background:var(--brand)} .st.now .b{border-color:var(--signal);background:var(--panel);color:var(--signal);box-shadow:0 0 0 4px color-mix(in srgb,var(--signal) 20%,transparent)}
+.st.fail .b{border-color:var(--bad);color:var(--bad);background:var(--bad-soft)}
+.meters{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:16px}
+.meter{background:var(--bg);border-radius:12px;padding:10px 12px}
+.meter .k{font-size:12px;color:var(--muted);font-weight:600} .meter .v{font-size:17px;font-weight:750;margin-top:1px}
+.bar{height:5px;background:var(--bg2);border-radius:3px;overflow:hidden;margin-top:6px}.bar i{display:block;height:100%;background:var(--brand);border-radius:3px;transition:width .4s}
+.docs{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.feed{list-style:none;margin:0;padding:0}
+.feed li{display:grid;grid-template-columns:30px minmax(0,1fr);gap:12px;padding:9px 0;position:relative}
+.feed li:not(:last-child)::before{content:"";position:absolute;left:14px;top:38px;bottom:-4px;width:2px;background:var(--line)}
+.feed .ic{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--bg2);color:var(--ink2)}
+.feed .ic svg{width:15px;height:15px}
+.feed .ok .ic{background:var(--ok-soft);color:var(--ok)} .feed .err .ic{background:var(--bad-soft);color:var(--bad)}
+.feed .you .ic{background:var(--warn-soft);color:var(--warn)} .feed .think .ic{background:var(--brand-soft);color:var(--brand)}
+.feed .ttl{font-weight:650;font-size:14.5px} .feed .d{font-size:13.5px;color:var(--ink2);margin-top:2px}
+.feed .think .d{font-style:italic;color:var(--muted)}
+.feed .err .d{color:var(--bad)}
+.feed details{margin-top:4px} .feed summary{font-size:12px;color:var(--muted);cursor:pointer}
+pre{font:12px/1.5 var(--mono);white-space:pre-wrap;word-break:break-word;background:var(--bg);padding:10px;border-radius:10px;max-height:260px;overflow:auto;margin:6px 0 0}
+.shield{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:var(--warn);background:var(--warn-soft);border-radius:999px;padding:2px 9px;margin-top:4px}
+
+/* ---------- approval */
+.gate{border:2px solid var(--signal);background:linear-gradient(180deg,color-mix(in srgb,var(--signal) 7%,var(--panel)),var(--panel) 160px)}
+.gate .kicker{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--signal)}
+.gate h2{font-size:21px;margin:6px 0 4px}
+.facts-line{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:14px;color:var(--ink2);margin-top:8px}
+.facts-line b{color:var(--ink)}
+.dtabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:18px 0 0;overflow-x:auto}
+.dtab{border:0;background:none;padding:10px 14px;font-weight:650;color:var(--muted);border-bottom:2.5px solid transparent;margin-bottom:-1px;white-space:nowrap}
+.dtab.on{color:var(--ink);border-bottom-color:var(--brand)}
+.dpanel{padding-top:16px}
+.paper{background:var(--paper);color:var(--paper-ink);border-radius:6px;padding:34px 38px;box-shadow:0 1px 3px rgba(0,0,0,.1),0 10px 30px rgba(0,0,0,.08);font-family:var(--serif);font-size:15px;line-height:1.6}
+.paper h4{font:700 12px var(--sans);text-transform:uppercase;letter-spacing:1.2px;color:#5b4fe0;margin:18px 0 6px;padding-bottom:4px;border-bottom:1px solid #e6e1d6}
+.paper .nm{font-size:26px;font-weight:700;letter-spacing:-.3px} .paper .hl{color:#6b665c;font-style:italic}
+.paper .it{margin-bottom:8px} .paper .it b{font-weight:700}
+.paper .cite{font:600 10.5px var(--mono);color:#9a9384;background:#f1ece0;border-radius:4px;padding:1px 5px;margin-left:4px;white-space:nowrap}
+textarea.paper{width:100%;min-height:380px;border:1.5px solid transparent;resize:vertical}
+textarea.paper:focus{border-color:var(--brand)}
+.edited{font-size:12px;font-weight:700;color:var(--brand);background:var(--brand-soft);padding:2px 8px;border-radius:999px}
+.decide{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:22px;padding-top:18px;border-top:1px solid var(--line)}
+.decide .grow{flex:1}
+.changes{margin-top:14px;padding:14px;border-radius:12px;background:var(--bg)}
+table.kvt{width:100%;border-collapse:collapse;font-size:14px}
+table.kvt td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+table.kvt td:first-child{color:var(--muted);font:12.5px var(--mono);width:36%}
+
+/* ---------- sandbox */
+.sb{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px}
+.item{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:8px;background:var(--bg)}
+.item .h{display:flex;justify-content:space-between;gap:10px;font-weight:650;font-size:14px}
+.item .m{font-size:13px;color:var(--muted);margin-top:2px}
+.item details summary{font-size:12.5px;color:var(--brand);cursor:pointer;margin-top:6px}
+.empty{text-align:center;padding:30px 12px;color:var(--muted)}
+.empty svg.i{width:34px;height:34px;color:var(--line);margin-bottom:6px}
+
+/* ---------- toast + modal */
+.toasts{position:fixed;top:72px;right:18px;z-index:50;display:flex;flex-direction:column;gap:8px;max-width:360px}
+.toast{background:var(--ink);color:var(--bg);padding:11px 15px;border-radius:12px;font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.2);animation:in .2s ease-out;display:flex;gap:8px;align-items:flex-start}
+.toast.bad{background:var(--bad);color:#fff} .toast.ok svg{color:var(--ok)}
+@keyframes in{from{opacity:0;transform:translateY(-6px)}}
+.spin{width:16px;height:16px;border:2.5px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp .7s linear infinite;display:inline-block;vertical-align:-3px}
+@keyframes sp{to{transform:rotate(360deg)}}
+dialog{border:0;border-radius:18px;padding:24px;max-width:420px;width:calc(100% - 32px);background:var(--panel);color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.3)}
+dialog::backdrop{background:rgba(18,17,28,.45);backdrop-filter:blur(2px)}
+dialog h2{margin:0 0 6px;font-size:19px}
+
+/* ---------- responsive */
+@media (max-width:900px){
+  .top{backdrop-filter:none;background:var(--bg)}
+  .cols-2,.cols-run{grid-template-columns:1fr}
+  .tabs{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);z-index:25;box-shadow:0 10px 30px rgba(0,0,0,.18);background:var(--panel);border:1px solid var(--line)}
+  .tab{padding:9px 12px;flex-direction:column;gap:2px;font-size:11.5px}
+  .env .chip.model{display:none}
+  .savebar{bottom:84px} .summary{bottom:80px}
+  .paper{padding:22px 20px}
+}
+@media (max-width:520px){ .top-in{padding:10px 16px} main{padding:18px 16px 130px} .hero h1{font-size:23px} .card{padding:18px} .step{display:block} .step-n{float:left;width:28px;height:28px;margin:2px 10px 0 0;font-size:14px}
+  .step-body>h2{margin-top:6px} .choices{clear:both} .jobs{max-height:none;overflow:visible} .summary .btn.big{padding:10px 18px;font-size:15px} .chip .lbl{display:none} .chip{padding:6px} .stepper .st{font-size:0} .tab span.lbl{display:none} .tab{padding:10px 16px} }
 </style>
 </head>
 <body>
-<header>
-  <h1>The <span>Operator</span></h1>
-  <span id="mode" class="badge">…</span><span id="model" class="meta"></span>
-  <nav>
-    <button data-v="profile" class="on">1 · Profile</button><button data-v="apply">2 · Apply</button>
-    <button data-v="run">3 · Run</button><button data-v="sandbox">Sandbox</button>
+<header class="top"><div class="top-in">
+  <div class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12" fill="none" stroke="var(--brand)" stroke-width="5"/><circle cx="16" cy="16" r="3.5" fill="var(--signal)"/></svg>The Operator</div>
+  <nav class="tabs" aria-label="Sections">
+    <button class="tab" data-v="profile"><svg class="i"><use href="#i-user"/></svg><span class="lbl">Profile</span></button>
+    <button class="tab" data-v="apply"><svg class="i"><use href="#i-send"/></svg><span class="lbl">Apply</span></button>
+    <button class="tab" data-v="runs"><svg class="i"><use href="#i-activity"/></svg><span class="lbl">Runs</span><span class="badge hidden" id="needBadge"></span></button>
+    <button class="tab" data-v="sandbox"><svg class="i"><use href="#i-inbox"/></svg><span class="lbl">Sandbox</span></button>
   </nav>
-</header>
+  <div class="env"><span class="chip" id="modeChip">…</span><span class="chip model" id="modelChip"><span class="dot" id="modelDot"></span><span id="modelName"></span></span></div>
+</div></header>
+
 <main>
-<div id="keywarn" class="alert bad hidden sans">No API key: add <code>ANTHROPIC_API_KEY</code> to <code>.env</code> and restart. You can still edit profiles.</div>
+<div id="modelBanner" class="alert bad hidden"><svg class="i"><use href="#i-alert"/></svg><div class="alert-body"><b>The AI model is not ready yet</b><span id="modelProblem"></span> You can still build your profile.</div></div>
 
-<!-- PROFILE -->
+<!-- ======================= PROFILE ======================= -->
 <section id="v-profile">
-  <div class="card">
-    <h2>Your profile</h2>
-    <p class="meta">The only source of truth: the agent may only claim what is written here, and every CV line cites a fact.</p>
-    <div class="row" style="align-items:flex-end">
-      <div><label>User</label><select id="profSel"></select></div>
-      <div style="flex:0 0 auto;display:flex;gap:8px"><button class="btn" id="newProf">+ New user</button>
-        <button class="btn danger" id="delProf">Delete user</button></div>
+  <div class="hero">
+    <div><h1>Your profile</h1><p>The agent only ever claims what is written here. Every line of a tailored CV points back to one of these facts, so nothing gets invented.</p></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <select id="profSel" style="width:auto;min-width:200px" aria-label="Choose a person"></select>
+      <button class="btn" id="newProf"><svg class="i"><use href="#i-plus"/></svg>New person</button>
     </div>
-    <div id="newBox" class="hidden"><div class="row" style="align-items:flex-end">
-      <div><label>Full name of the new user</label><input id="newName" placeholder="e.g. Nesrine Belgacem"></div>
-      <div style="flex:0 0 auto"><button class="btn primary" id="newCreate">Create</button></div></div></div>
   </div>
-  <div class="card">
-    <h3 style="margin-top:0">Fill my profile automatically</h3>
-    <ol class="meta" style="padding-left:18px;margin:6px 0 10px">
-      <li><b>LinkedIn:</b> open your LinkedIn profile → click <b>More</b> (or <b>Resources</b>) → <b>Save to PDF</b>, and drop that PDF here.</li>
-      <li>Add your CV and old cover letters too if you have them (PDF, DOCX, TXT).</li>
-      <li>Optional: your website link, or the LinkedIn data-export ZIP.</li>
-    </ol>
-    <label>Files</label><input type="file" id="impFiles" multiple accept=".pdf,.docx,.txt,.md,.zip,.csv">
-    <label>Website links (one per line)</label><textarea id="impUrls" style="min-height:50px" placeholder="https://your-site.example"></textarea>
-    <details><summary>Or paste text</summary><textarea id="impText"></textarea></details>
-    <div class="actions"><button class="btn primary" id="impBtn">Fill my profile</button><span id="impMsg" class="meta"></span></div>
-  </div>
-  <div class="card" id="editor">
-    <div class="row"><div><label>Name</label><input id="p_name"></div><div><label>Email</label><input id="p_email"></div></div>
-    <div class="row"><div><label>Phone</label><input id="p_phone"></div><div><label>Location</label><input id="p_location"></div></div>
-    <label>Headline</label><input id="p_headline">
-    <label>Links (name=url, one per line)</label><textarea id="p_links" style="min-height:50px"></textarea>
-    <label>Skills (comma separated) — the CV skill list can only use these</label><input id="p_skills">
-    <label>Languages (comma separated, with level)</label><input id="p_languages">
-    <h3>Facts</h3><div id="facts"></div><button class="btn" id="addFact">+ Add fact</button>
-    <label>Old cover letters (style examples; separate with a line of ---)</label><textarea id="p_letters" style="min-height:120px"></textarea>
-    <details><summary>Private fields (never sent; used to detect leaks)</summary>
-      <p class="meta">Optional. E.g. passport_number=…  The agent never sees these. Any outgoing text containing them is blocked.</p>
-      <textarea id="p_private" style="min-height:50px"></textarea></details>
-    <div class="actions"><button class="btn primary" id="saveProf">Save profile</button><span id="saveMsg" class="meta"></span></div>
+  <div class="grid cols-2">
+    <div class="stack">
+      <div class="card">
+        <div class="who"><div class="ring" id="ring"><span id="ringTxt">0%</span></div>
+          <div><h2 id="whoName" style="margin:0">—</h2><div class="muted small" id="whoHead"></div></div></div>
+        <ul class="checklist" id="checklist"></ul>
+      </div>
+      <div class="card">
+        <h2><svg class="i"><use href="#i-upload"/></svg>Fill it in automatically</h2>
+        <p class="sub">Give it what you already have. It reads everything and proposes facts for you to check.</p>
+        <ol class="steps-mini">
+          <li><span><b>LinkedIn:</b> open your profile → <b>More</b> → <b>Save to PDF</b>.</span></li>
+          <li><span>Drop that PDF here, plus your CV and old cover letters (PDF, DOCX, TXT).</span></li>
+          <li><span>Check the facts it found, fix anything wrong, then save.</span></li>
+        </ol>
+        <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose files">
+          <svg class="i"><use href="#i-upload"/></svg><b>Drop files here or click to choose</b>
+          <span class="muted small">PDF · DOCX · TXT · LinkedIn export ZIP</span>
+          <input type="file" id="impFiles" multiple accept=".pdf,.docx,.txt,.md,.zip,.csv" class="hidden">
+        </div>
+        <div class="files" id="fileChips"></div>
+        <details style="margin-top:12px"><summary class="small muted" style="cursor:pointer">Add a website link or paste text instead</summary>
+          <label class="f">Website links (one per line)</label><textarea id="impUrls" style="min-height:56px" placeholder="https://your-portfolio.example"></textarea>
+          <label class="f">Pasted text</label><textarea id="impText" placeholder="Paste your CV text here…"></textarea>
+        </details>
+        <div class="actions"><button class="btn primary" id="impBtn"><svg class="i"><use href="#i-sparkle"/></svg>Read my documents</button><span id="impMsg" class="small muted"></span></div>
+      </div>
+    </div>
+
+    <div class="card" id="editor">
+      <details class="sec" open style="border-top:0;margin-top:0;padding-top:0"><summary><svg class="i"><use href="#i-user"/></svg>Contact details</summary>
+        <div class="row"><div><label class="f" for="p_name">Full name</label><input id="p_name"></div><div><label class="f" for="p_email">Email</label><input id="p_email" type="email"></div></div>
+        <div class="row"><div><label class="f" for="p_phone">Phone</label><input id="p_phone"></div><div><label class="f" for="p_location">City, country</label><input id="p_location"></div></div>
+        <label class="f" for="p_headline">One-line headline</label><input id="p_headline" placeholder="e.g. Computer science student focused on data engineering">
+        <label class="f">Links</label><div id="links"></div><button class="btn sm ghost" id="addLink"><svg class="i"><use href="#i-plus"/></svg>Add link</button>
+      </details>
+      <details class="sec" open><summary><svg class="i"><use href="#i-star"/></svg>Skills &amp; languages<span class="count" id="skillCount"></span></summary>
+        <label class="f">Skills <span class="muted" style="font-weight:400">— the CV can only list skills from here</span></label>
+        <div class="chips-in" id="skillsBox"><input id="skillIn" placeholder="Type a skill and press Enter"></div>
+        <label class="f">Languages</label>
+        <div class="chips-in" id="langsBox"><input id="langIn" placeholder="e.g. English (C1) — press Enter"></div>
+      </details>
+      <details class="sec" open><summary><svg class="i"><use href="#i-list"/></svg>Facts about you<span class="count" id="factCount"></span></summary>
+        <p class="sub">One true statement each: a job, a degree, a project. Include dates and what you did.</p>
+        <div id="facts"></div>
+        <button class="btn sm" id="addFact"><svg class="i"><use href="#i-plus"/></svg>Add a fact</button>
+      </details>
+      <details class="sec"><summary><svg class="i"><use href="#i-pen"/></svg>Your writing style<span class="count" id="letterCount"></span></summary>
+        <p class="sub">Paste old cover letters. They are only used to match your voice, never as facts. Separate letters with a line containing <span class="mono">---</span>.</p>
+        <textarea id="p_letters" style="min-height:140px"></textarea>
+      </details>
+      <details class="sec"><summary><svg class="i"><use href="#i-lock"/></svg>Private details <span class="muted small" style="font-weight:500">never shared</span></summary>
+        <p class="sub">Optional: passport or ID numbers, birth date. The agent never sees these. If any of them ever appears in outgoing text, the send is blocked.</p>
+        <div id="privs"></div><button class="btn sm ghost" id="addPriv"><svg class="i"><use href="#i-plus"/></svg>Add private detail</button>
+      </details>
+      <div class="actions" style="justify-content:space-between"><button class="btn danger sm ghost" id="delProf"><svg class="i"><use href="#i-trash"/></svg>Delete this person</button>
+        <button class="btn primary" id="saveProf"><svg class="i"><use href="#i-check"/></svg>Save profile</button></div>
+    </div>
   </div>
 </section>
 
-<!-- APPLY -->
+<!-- ======================= APPLY ======================= -->
 <section id="v-apply" class="hidden">
-  <div class="card">
-    <h2>New application run</h2>
-    <p class="meta">Profile: <b id="applyWho"></b></p>
-    <label>What should it apply to?</label>
-    <div class="seg" id="targetSeg">
-      <label><input type="radio" name="target" value="ids" checked>Job id(s) on the board</label>
-      <label><input type="radio" name="target" value="url">A job link</label>
-      <label><input type="radio" name="target" value="search">Find jobs for me</label>
-    </div>
-    <div id="t-ids"><label>Job ids</label><input id="jobIds" placeholder="J-1001, J-1013"></div>
-    <div id="t-url" class="hidden"><label>Job link</label><input id="jobUrl" placeholder="https://…">
-      <label>Application email (only needed for email channel; the agent never takes an address from the page)</label><input id="contactEmail"></div>
-    <div id="t-search" class="hidden"><div class="row"><div><label>Search</label><input id="search" placeholder="python data werkstudent"></div>
-      <div><label>Max applications</label><input id="maxApps" type="number" min="1" max="5" value="1"></div></div></div>
-    <label>How to apply</label>
-    <div class="seg">
-      <label><input type="radio" name="channel" value="api" checked>Submit on job board <span class="meta">(sandbox)</span></label>
-      <label><input type="radio" name="channel" value="email">Send by email</label>
-      <label><input type="radio" name="channel" value="form">Fill the form, I click Submit</label>
-    </div>
-    <label class="sans" style="font-weight:500"><input type="checkbox" id="showBrowser" style="width:auto"> Show the browser while filling forms</label>
-    <label>Notes for the agent (optional)</label><textarea id="notes" placeholder="e.g. Write the letter in German. Emphasise my data projects."></textarea>
-    <div class="actions"><button class="btn primary" id="startBtn">Start</button><span id="startMsg" class="meta"></span></div>
+  <div class="hero"><div><h1>New application</h1><p>Three choices and you're off. Nothing is sent until you approve it.</p></div>
+    <div class="who"><div class="avatar sm" id="applyAvatar"></div><div class="small">Applying as <b id="applyWho"></b><br><a href="#" id="changeWho" class="small">change</a></div></div></div>
+
+  <div class="card stack">
+    <div class="step"><div class="step-n">1</div><div class="step-body">
+      <h2>Which job?</h2>
+      <div class="choices" id="targets">
+        <button class="choice on" data-t="board"><span class="ic"><svg class="i"><use href="#i-grid"/></svg></span><b>Pick from the test board</b><span>Safe sandbox jobs, some with hidden attacks</span></button>
+        <button class="choice" data-t="paste"><span class="ic"><svg class="i"><use href="#i-clipboard"/></svg></span><b>Paste a job posting</b><span>Copy the text from any site</span></button>
+        <button class="choice" data-t="url"><span class="ic"><svg class="i"><use href="#i-link"/></svg></span><b>Job link</b><span>Works on sites that allow reading</span></button>
+        <button class="choice" data-t="search"><span class="ic"><svg class="i"><use href="#i-search"/></svg></span><b>Find jobs for me</b><span>It searches and picks the best fit</span></button>
+      </div>
+
+      <div id="t-board">
+        <div class="row" style="margin-top:10px"><input id="jobFilter" placeholder="Filter jobs: python, Darmstadt, data…" aria-label="Filter jobs"></div>
+        <div class="jobs" id="jobGrid"></div>
+      </div>
+      <div id="t-paste" class="hidden">
+        <label class="f" for="jobText">The job posting</label><textarea id="jobText" style="min-height:170px" placeholder="Paste the whole job description here…"></textarea>
+        <div class="hint">The posting is treated as untrusted text: if it contains instructions aimed at the AI, they are flagged and ignored.</div>
+      </div>
+      <div id="t-url" class="hidden">
+        <label class="f" for="jobUrl">Link to the job</label><input id="jobUrl" type="url" placeholder="https://…">
+        <div class="hint">LinkedIn, Indeed and some others block automated reading. If the run says it couldn't read the page, use “Paste a job posting”.</div>
+      </div>
+      <div id="t-search" class="hidden">
+        <div class="row"><div><label class="f" for="search">What are you looking for?</label><input id="search" placeholder="python data werkstudent"></div>
+          <div><label class="f" for="maxApps">Apply to at most</label><select id="maxApps"><option value="1">1 job</option><option value="2">2 jobs</option><option value="3">3 jobs</option></select></div></div>
+      </div>
+      <div id="t-details" class="hidden">
+        <div class="row"><div><label class="f" for="jobTitle">Job title</label><input id="jobTitle" placeholder="Working Student Data Engineering"></div>
+          <div><label class="f" for="jobCompany">Company</label><input id="jobCompany" placeholder="Rhein Mobility GmbH"></div>
+          <div><label class="f" for="jobLocation">Location</label><input id="jobLocation" placeholder="Darmstadt"></div></div>
+        <div class="hint" id="detailsHint">These appear on your cover letter.</div>
+      </div>
+    </div></div>
+
+    <div class="step"><div class="step-n">2</div><div class="step-body">
+      <h2>How should it apply?</h2>
+      <div class="choices" id="channels">
+        <button class="choice on" data-c="api"><span class="ic"><svg class="i"><use href="#i-grid"/></svg></span><b>Submit on the job board</b><span>You approve, the agent submits. Test board only.</span></button>
+        <button class="choice" data-c="email"><span class="ic"><svg class="i"><use href="#i-mail"/></svg></span><b>Send by email</b><span>CV + letter PDFs, to the company's address on record</span></button>
+        <button class="choice" data-c="form"><span class="ic"><svg class="i"><use href="#i-form"/></svg></span><b>Fill the online form</b><span>The agent fills it in. <b>You</b> click Submit.</span></button>
+      </div>
+      <div id="emailBox" class="hidden"><label class="f" for="contactEmail">Email address to apply to</label><input id="contactEmail" type="email" placeholder="jobs@company.com">
+        <div class="hint">For your own postings, you give the address. The agent never takes one from the posting text, because that's a classic attack.</div></div>
+      <div id="formBox" class="hidden">
+        <div id="applyUrlBox"><label class="f" for="applyUrl">Link to the application form</label><input id="applyUrl" type="url" placeholder="https://…"></div>
+        <label class="small" style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" id="showBrowser" style="width:auto"> Show me the browser while it fills the form</label></div>
+    </div></div>
+
+    <div class="step"><div class="step-n">3</div><div class="step-body">
+      <h2>Anything it should know? <span class="muted" style="font-weight:500;font-size:14px">optional</span></h2>
+      <textarea id="notes" style="min-height:70px;margin-top:10px" placeholder="e.g. Write the letter in German. Highlight my data projects. Keep it short."></textarea>
+    </div></div>
   </div>
-  <div class="card"><h3 style="margin-top:0">Sandbox jobs</h3><p class="meta">The test board. Some postings contain hidden attacks (J-1008 to J-1013, J-1016).</p>
-    <a id="boardLink" target="_blank">Open the sandbox job board ↗</a></div>
+
+  <div class="summary"><div class="s" id="sumText">Pick a job to start.</div>
+    <button class="btn primary big" id="startBtn" disabled><svg class="i"><use href="#i-play"/></svg>Start</button></div>
 </section>
 
-<!-- RUN -->
-<section id="v-run" class="hidden">
-  <div class="card"><div class="row" style="align-items:center"><div><label style="margin-top:0">Run</label><select id="runSel"></select></div><div></div></div>
-    <div id="runHead"></div></div>
-  <div id="gate"></div>
-  <div class="card"><h3 style="margin-top:0">Trajectory</h3><ul class="timeline" id="timeline"></ul></div>
+<!-- ======================= RUNS ======================= -->
+<section id="v-runs" class="hidden">
+  <div class="grid cols-run">
+    <aside>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin:4px 0 12px"><h1 style="font-size:22px;margin:0;letter-spacing:-.4px">Runs</h1>
+        <button class="btn sm primary" data-go="apply"><svg class="i"><use href="#i-plus"/></svg>New</button></div>
+      <div class="runlist" id="runList"></div>
+    </aside>
+    <div class="stack" id="runMain">
+      <div class="card empty" id="runEmpty"><svg class="i"><use href="#i-activity"/></svg><div><b>No run selected</b></div><div class="small">Start an application and follow it here, step by step.</div>
+        <div class="actions" style="justify-content:center"><button class="btn primary" data-go="apply">New application</button></div></div>
+      <div id="runView" class="hidden stack">
+        <div class="card">
+          <div class="runhead"><div><h2 id="rTitle"></h2><div class="small muted" id="rSub"></div></div><span class="status" id="rStatus"></span></div>
+          <div class="stepper" id="stepper"></div>
+          <div id="rResult"></div>
+          <div class="meters" id="meters"></div>
+          <div class="docs" id="rDocs"></div>
+        </div>
+        <div id="gate"></div>
+        <div class="card"><h2><svg class="i"><use href="#i-activity"/></svg>What it did</h2><p class="sub">Every step the agent took, in plain words. Open “details” to see the exact tool input and output.</p><ul class="feed" id="feed"></ul></div>
+      </div>
+    </div>
+  </div>
 </section>
 
-<!-- SANDBOX -->
+<!-- ======================= SANDBOX ======================= -->
 <section id="v-sandbox" class="hidden">
-  <div class="card"><h2>Sandbox state</h2><p class="meta">Everything written in sandbox mode lands here. Reset any time.</p>
-    <div class="actions"><button class="btn" id="sbRefresh">Refresh</button><button class="btn danger" id="sbReset">Reset sandbox</button></div>
-    <h3>Applications</h3><table id="sbApps"></table><h3>Outbox (mock email)</h3><table id="sbMail"></table></div>
+  <div class="hero"><div><h1>Sandbox</h1><p>A fake job board and mailbox. Everything the agent “sends” in test mode lands here, and nothing reaches a real company.</p></div>
+    <div class="actions" style="margin:0"><a class="btn" id="boardLink" target="_blank" rel="noopener"><svg class="i"><use href="#i-external"/></svg>Open test job board</a>
+      <button class="btn" id="sbRefresh"><svg class="i"><use href="#i-refresh"/></svg>Refresh</button>
+      <button class="btn danger" id="sbReset"><svg class="i"><use href="#i-trash"/></svg>Reset</button></div></div>
+  <div id="sbDown" class="alert bad hidden"><svg class="i"><use href="#i-alert"/></svg><div class="alert-body"><b>The sandbox is not running.</b>Start the app with <span class="mono">python run.py</span>; it starts the sandbox too.</div></div>
+  <div class="sb">
+    <div class="card"><h2><svg class="i"><use href="#i-grid"/></svg>Applications submitted <span class="chip" id="sbAppsN">0</span></h2><p class="sub">Submitted on the test board.</p><div id="sbApps"></div></div>
+    <div class="card"><h2><svg class="i"><use href="#i-mail"/></svg>Emails sent <span class="chip" id="sbMailN">0</span></h2><p class="sub">The test outbox. Check that the recipient is the real company address, not an attacker's.</p><div id="sbMail"></div></div>
+  </div>
 </section>
 </main>
 
+<div class="savebar" id="savebar" role="status"><span>You have unsaved changes</span>
+  <button class="btn ghost sm" id="discard">Discard</button><button class="btn primary sm" id="saveProf2">Save profile</button></div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<dialog id="newDlg"><form method="dialog" id="newForm">
+  <h2>Add a person</h2><p class="muted small" style="margin:0 0 6px">Each person has their own profile and facts.</p>
+  <label class="f" for="newName">Full name</label><input id="newName" required placeholder="e.g. Nesrine Belgacem" autocomplete="off">
+  <div class="actions" style="justify-content:flex-end"><button class="btn ghost" value="cancel" formnovalidate>Cancel</button><button class="btn primary" value="ok">Create</button></div>
+</form></dialog>
+
+<!-- icon sprite (Feather-style strokes) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-user" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></symbol>
+  <symbol id="i-activity" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></symbol>
+  <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5M12 3v12"/></symbol>
+  <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 17l.8 2.2L22 20l-2.2.8L19 23l-.8-2.2L16 20l2.2-.8z"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24"><path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></symbol>
+  <symbol id="i-pen" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+  <symbol id="i-clipboard" viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></symbol>
+  <symbol id="i-form" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 8h10M7 12h10M7 16h5"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="m6 3 14 9-14 9z"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></symbol>
+  <symbol id="i-question" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></symbol>
+  <symbol id="i-external" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14 21 3"/></symbol>
+  <symbol id="i-brain" viewBox="0 0 24 24"><path d="M12 5a3 3 0 0 0-5.99.15A3 3 0 0 0 4 10a3 3 0 0 0 1 5.83A3 3 0 0 0 10 18a2 2 0 0 0 2-2zM12 5a3 3 0 0 1 5.99.15A3 3 0 0 1 20 10a3 3 0 0 1-1 5.83A3 3 0 0 1 14 18a2 2 0 0 1-2-2"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1zM4 22v-7"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/></symbol>
+</svg>
+
 <script>
-const $ = s => document.querySelector(s), esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const api = async (path, opt={}) => { const r = await fetch(path, opt); const j = await r.json().catch(()=>({}));
-  if (!r.ok) throw new Error(j.detail ? (typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail)) : r.statusText); return j; };
-let CFG = {}, PROFILE = null, CUR_RUN = null, POLL = null;
-
-// ---------- navigation
-function show(v){ document.querySelectorAll("main>section").forEach(s=>s.classList.add("hidden")); $("#v-"+v).classList.remove("hidden");
-  document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on", b.dataset.v===v));
-  if (v==="sandbox") loadSandbox(); if (v==="apply") $("#applyWho").textContent = PROFILE ? `${PROFILE.name} (${PROFILE.user_id})` : "none"; if (v==="run") loadRuns(); }
-document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>show(b.dataset.v));
-
-// ---------- profile
-async function loadProfiles(sel){ const ps = await api("/api/profiles");
-  $("#profSel").innerHTML = ps.map(p=>`<option value="${esc(p.user_id)}">${esc(p.name||p.user_id)}</option>`).join("");
-  if (sel) $("#profSel").value = sel; await loadProfile($("#profSel").value); }
-async function loadProfile(id){ if (!id) return; PROFILE = await api("/api/profile/"+id); fillEditor(PROFILE);
-  $("#delProf").disabled = id === "lina-test"; $("#impMsg").textContent = ""; }
-$("#profSel").onchange = e => loadProfile(e.target.value);
-const slug = n => n.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,30) || "user";
-$("#newProf").onclick = () => { $("#newBox").classList.toggle("hidden"); $("#newName").focus(); };
-$("#newCreate").onclick = async () => { const name = $("#newName").value.trim(); if (!name) return;
-  const taken = [...$("#profSel").options].map(o=>o.value); let id = slug(name), n = 2; while (taken.includes(id)) id = slug(name)+"-"+(n++);
-  await api("/api/profile/"+id, {method:"PUT", headers:{"content-type":"application/json"}, body:JSON.stringify({user_id:id, name, email:""})});
-  $("#newName").value = ""; $("#newBox").classList.add("hidden"); await loadProfiles(id);
-  $("#impMsg").textContent = "New user created. Now add the LinkedIn PDF and click Fill my profile."; };
-$("#delProf").onclick = async () => { const id = $("#profSel").value; if (id==="lina-test") return;
-  if (!confirm(`Delete the profile of ${PROFILE?.name || id}? This cannot be undone.`)) return;
-  await api("/api/profile/"+id, {method:"DELETE"}); await loadProfiles(); };
-const KINDS = ["education","experience","project","certification","award","volunteering","other","user_confirmed"];
-function factRow(f){ const d = document.createElement("div"); d.className="fact";
-  d.innerHTML = `<input value="${esc(f.id)}" class="fid"><select class="fkind">${KINDS.map(k=>`<option ${k===f.kind?"selected":""}>${k}</option>`).join("")}</select>
-  <textarea class="ftext">${esc(f.text)}</textarea><button class="btn danger" title="Delete">×</button>`;
-  d.querySelector("button").onclick=()=>d.remove(); return d; }
-function fillEditor(p){ ["name","email","phone","location","headline"].forEach(k=>$("#p_"+k).value=p[k]||"");
-  $("#p_links").value = Object.entries(p.links||{}).map(([k,v])=>`${k}=${v}`).join("\n");
-  $("#p_skills").value=(p.skills||[]).join(", "); $("#p_languages").value=(p.languages||[]).join(", ");
-  $("#facts").innerHTML=""; (p.facts||[]).forEach(f=>$("#facts").appendChild(factRow(f)));
-  $("#p_letters").value=(p.old_letters||[]).join("\n---\n");
-  $("#p_private").value=Object.entries(p.private||{}).map(([k,v])=>`${k}=${v}`).join("\n"); }
-$("#addFact").onclick=()=>{ const n = Math.max(0,...[...document.querySelectorAll(".fid")].map(i=>+i.value.slice(1)||0))+1;
-  $("#facts").appendChild(factRow({id:"F"+n,kind:"experience",text:""})); };
-const kv = t => Object.fromEntries(t.split("\n").map(l=>l.trim()).filter(l=>l.includes("=")).map(l=>[l.split("=")[0].trim(), l.slice(l.indexOf("=")+1).trim()]));
-const list = t => t.split(",").map(s=>s.trim()).filter(Boolean);
-function readEditor(id){ return { user_id:id, name:$("#p_name").value, email:$("#p_email").value, phone:$("#p_phone").value, location:$("#p_location").value,
-  headline:$("#p_headline").value, links:kv($("#p_links").value), skills:list($("#p_skills").value), languages:list($("#p_languages").value),
-  facts:[...document.querySelectorAll(".fact")].map(d=>({id:d.querySelector(".fid").value.trim(), kind:d.querySelector(".fkind").value, text:d.querySelector(".ftext").value.trim()})).filter(f=>f.text),
-  old_letters:$("#p_letters").value.split(/\n-{3,}\n/).map(s=>s.trim()).filter(Boolean), private:kv($("#p_private").value) }; }
-$("#saveProf").onclick = async () => { const id = $("#profSel").value;
-  try { const p = readEditor(id); await api("/api/profile/"+id, {method:"PUT", headers:{"content-type":"application/json"}, body:JSON.stringify(p)});
-    $("#saveMsg").textContent="Saved."; await loadProfiles(id); } catch(e){ $("#saveMsg").textContent="Error: "+e.message; } };
-$("#impBtn").onclick = async () => { const id = $("#profSel").value; const fd = new FormData();
-  fd.append("user_id", id); fd.append("base", JSON.stringify(readEditor(id))); fd.append("urls", $("#impUrls").value); fd.append("pasted", $("#impText").value);
-  [...$("#impFiles").files].forEach(f=>fd.append("files", f)); $("#impMsg").textContent="Reading your documents… (up to a minute)"; $("#impBtn").disabled=true;
-  try { const r = await api("/api/profile/import", {method:"POST", body:fd}); fillEditor(r.draft);
-    $("#impMsg").textContent=`Done: ${r.facts} facts, ${r.skills} skills. Check them below (fix or delete anything wrong), then click Save profile.`;
-    $("#editor").scrollIntoView({behavior:"smooth"}); }
-  catch(e){ $("#impMsg").textContent="Error: "+e.message; } finally { $("#impBtn").disabled=false; } };
-
-// ---------- apply
-document.querySelectorAll("input[name=target]").forEach(r=>r.onchange=()=>{ const v=document.querySelector("input[name=target]:checked").value;
-  ["ids","url","search"].forEach(k=>$("#t-"+k).classList.toggle("hidden", k!==v)); });
-$("#startBtn").onclick = async () => { if (!PROFILE) return; const t = document.querySelector("input[name=target]:checked").value;
-  const body = { user_id: PROFILE.user_id, channel: document.querySelector("input[name=channel]:checked").value, notes: $("#notes").value,
-    show_browser: $("#showBrowser").checked, job_ids: t==="ids" ? list($("#jobIds").value) : [], job_url: t==="url" ? $("#jobUrl").value.trim() : "",
-    contact_email: t==="url" ? $("#contactEmail").value.trim() : "", search: t==="search" ? $("#search").value.trim() : "", max_submissions: +$("#maxApps").value||1 };
-  $("#startMsg").textContent="Starting…";
-  try { const r = await api("/api/runs", {method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify(body)});
-    CUR_RUN = r.run_id; $("#startMsg").textContent=""; show("run"); } catch(e){ $("#startMsg").textContent="Error: "+e.message; } };
-
-// ---------- runs
-async function loadRuns(){ const rs = await api("/api/runs");
-  $("#runSel").innerHTML = rs.map(r=>`<option value="${r.run_id}">${r.run_id} · ${r.status}</option>`).join("") || "<option value=''>No runs yet</option>";
-  if (CUR_RUN) $("#runSel").value = CUR_RUN; else CUR_RUN = $("#runSel").value; poll(); }
-$("#runSel").onchange = e => { CUR_RUN = e.target.value; poll(); };
-function poll(){ clearTimeout(POLL); if (!CUR_RUN) return; api("/api/runs/"+CUR_RUN).then(r=>{ renderRun(r);
-  if (r.busy || r.status==="running") POLL = setTimeout(poll, 1000); }).catch(()=>{}); }
-const meter = (label, v, max, fmt=x=>x) => `<div class="meter"><span class="meta">${label}: ${fmt(v)} / ${fmt(max)}</span><div class="bar"><i style="width:${Math.min(100,100*v/max)}%"></i></div></div>`;
-function injections(r){ const out=[]; for (const s of r.trajectory) { const o=s.output||{}; for (const k of ["description","page","old_letters_for_style_only"]) {
-  const w=o[k]; if (w && w.suspected_injection && w.suspected_injection.length) out.push({src:w.source, hits:w.suspected_injection}); } } return out; }
-function renderRun(r){
-  $("#runHead").innerHTML = `<p style="margin:10px 0 4px"><span class="pill ${r.status}">${r.status.replace("_"," ")}</span> ${r.busy?'<span class="meta">working…</span>':""}</p>
-   <p class="meta" style="white-space:pre-wrap">${esc(r.goal)}</p>
-   <div class="meters">${meter("Steps", r.tool_calls, CFG.limits.max_steps)}${meter("Cost", r.cost_usd, CFG.limits.max_cost_usd, x=>"$"+(+x).toFixed(3))}
-   <div class="meter"><span class="meta">Tokens ${r.tokens_in+r.tokens_out} · ${r.seconds}s · applications ${r.submissions}</span></div></div>
-   ${r.stop_reason?`<div class="alert bad">Stopped: ${esc(r.stop_reason)}</div>`:""}
-   ${r.final?`<div class="alert ${r.final.status==="completed"?"ok":"warn"}"><b>${esc(r.final.status)}</b> — ${esc(r.final.summary)}</div>`:""}
-   ${Object.entries(r.documents||{}).map(([j,d])=>`<p class="meta">${esc(j)}: <a target=_blank href="/api/file?path=${encodeURIComponent(d.cv_pdf)}">CV.pdf</a> · <a target=_blank href="/api/file?path=${encodeURIComponent(d.letter_pdf)}">Letter.pdf</a></p>`).join("")}`;
-  renderGate(r);
-  $("#timeline").innerHTML = r.events.filter(e=>["thought","tool","checkpoint","decision","stopped","error","auto_retry"].includes(e.kind)).map(e=>{
-    if (e.kind==="thought") return `<li><div class="thought">${esc(e.text)}</div></li>`;
-    if (e.kind==="checkpoint") return `<li class="gate"><span class="tool">‖ ${esc(e.tool)}</span> <span class="meta">waiting for you</span></li>`;
-    if (e.kind==="decision") return `<li class="gate"><span class="meta">You: <b>${esc(e.decision)}</b> ${esc(e.reason||"")}</span></li>`;
-    if (e.kind==="auto_retry") return `<li class="err"><span class="meta">auto-retry ${esc(e.tool)}: ${esc(e.error)}</span></li>`;
-    if (e.kind==="stopped"||e.kind==="error") return `<li class="err"><b>${esc(e.reason||e.error)}</b></li>`;
-    const o = e.output||{}; return `<li class="${e.ok?"ok":"err"}"><span class="tool">${esc(e.tool)}</span> <span class="meta">#${e.step} · ${e.ms} ms ${e.error_class?"· "+esc(e.error_class):""} ${e.decision?"· "+esc(e.decision):""}</span>
-      ${!e.ok?`<div class="meta" style="color:var(--bad)">${esc(o.error)} ${o.hint?"→ "+esc(o.hint):""}</div>`:""}
-      <details><summary>input / output</summary><pre>${esc(JSON.stringify(e.input,null,1))}</pre><pre>${esc(JSON.stringify(o,null,1))}</pre></details></li>`; }).join("");
+"use strict";
+/* =================================================================== helpers */
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const icon = (n, cls = "i") => `<svg class="${cls}"><use href="#i-${n}"/></svg>`;
+async function api(path, opt = {}) {
+  const r = await fetch(path, opt); const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.detail ? (typeof j.detail === "string" ? j.detail : j.detail.map?.(d => d.msg).join("; ") || JSON.stringify(j.detail)) : r.statusText);
+  return j;
 }
-function cvHtml(cv){ if (!cv) return ""; return `<div class="cv"><b style="font-size:17px">${esc(PROFILE?.name||"")}</b><div class="meta">${esc(cv.headline)}</div>
-  ${cv.summary?.text?`<h4>Profile</h4><div>${esc(cv.summary.text)} <span class="cites">[${esc((cv.summary.fact_ids||[]).join(","))}]</span></div>`:""}
-  ${(cv.sections||[]).map(s=>`<h4>${esc(s.title)}</h4>${s.items.map(i=>`<div class="item"><b>${esc(i.heading)}</b> <span class="cites">[${esc(i.fact_ids.join(","))}]</span><br>${esc(i.text)}</div>`).join("")}`).join("")}
-  ${cv.skills?.length?`<h4>Skills</h4>${esc(cv.skills.join(", "))}`:""}${cv.languages?.length?`<h4>Languages</h4>${esc(cv.languages.join(", "))}`:""}</div>`; }
-let GATE_KEY = null;
-function renderGate(r){
-  const p = r.pending; if (!p) { $("#gate").innerHTML=""; GATE_KEY=null; return; }
-  const key = p.tool_use_id; if (GATE_KEY===key) return; GATE_KEY=key; const v = p.preview;
-  if (p.kind==="input") { $("#gate").innerHTML = `<div class="card checkpoint"><h2>The agent has a question</h2><p style="font-size:17px">${esc(v.question)}</p>
-    <label>Your answer</label><textarea id="ans"></textarea><label>If this is a new true fact about you, write it as one sentence (it becomes a citable fact)</label>
-    <input id="ansFact" placeholder="e.g. Used Docker in a university project (2025)"><div class="actions"><button class="btn primary" id="ansBtn">Send answer</button></div></div>`;
-    $("#ansBtn").onclick = async () => { await api(`/api/runs/${CUR_RUN}/answer`, {method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({text:$("#ans").value||"no", add_fact:$("#ansFact").value})}); GATE_KEY=null; poll(); };
-    return; }
-  const g = v.grounding||{errors:[],warnings:[]}; const inj = injections(r); const job = v.job||{};
-  $("#gate").innerHTML = `<div class="card checkpoint"><p class="meta" style="margin:0">Needs your approval</p><h2>${esc(v.action)}</h2>
-   <p><b>${esc(job.title)}</b> · ${esc(job.company)} · ${esc(job.location)} <span class="meta">(${esc(job.id)})</span></p>
-   ${v.to?`<p class="sans">To: <b>${esc(v.to)}</b> <span class="meta">(address on record, not taken from the posting text)</span></p>`:""}
-   ${inj.length?`<div class="alert warn"><b>Heads up:</b> this content contains text aimed at the AI. It was passed to the agent as data only, never as instructions:<br>${inj.map(i=>`<i>${esc(i.src)}</i>: “${esc(i.hits[0])}”`).join("<br>")}</div>`:""}
-   ${g.errors?.length?`<div class="alert bad">Unsupported claims (your edits):<br>${g.errors.map(esc).join("<br>")}</div>`:`<div class="alert ok">Grounding check passed: every claim traces to your profile.</div>`}
-   ${g.warnings?.length?`<div class="alert warn">${g.warnings.map(esc).join("<br>")}</div>`:""}
-   ${v.subject?`<label>Email subject</label><input id="g_subject" value="${esc(v.subject)}"><label>Email body</label><textarea id="g_body" style="min-height:120px">${esc(v.body)}</textarea>`:""}
-   ${v.values?`<h3>Form values to fill</h3><table>${Object.entries(v.values).map(([k,x])=>`<tr><td class="tool">${esc(k)}</td><td>${esc(x)}</td></tr>`).join("")}</table>
-     ${v.left_for_user?.length?`<p class="meta">Left empty for you: ${esc(v.left_for_user.join(", "))}</p>`:""}<p class="meta">The agent fills the form; it will not submit. You click Submit in the browser.</p>`:""}
-   <h3>Tailored CV</h3>${cvHtml(v.cv)}
-   <h3>Cover letter</h3><textarea id="g_letter" style="min-height:260px;font:15px/1.55 Georgia,serif">${esc(v.letter)}</textarea>
-   <p class="meta"><a target=_blank href="/api/file?path=${encodeURIComponent(v.cv_pdf||"")}">CV.pdf</a> · <a target=_blank href="/api/file?path=${encodeURIComponent(v.letter_pdf||"")}">Letter.pdf</a></p>
-   <label>Reason (if you reject or want changes)</label><input id="g_reason" placeholder="e.g. Make the letter shorter and in German">
-   <div class="actions"><button class="btn primary" id="gApprove">Approve</button><button class="btn" id="gEdit">Approve with my edits</button>
-   <button class="btn danger" id="gReject">Reject</button></div></div>`;
-  const send = async (decision, edits) => { document.querySelectorAll("#gate button").forEach(b=>b.disabled=true);
-    await api(`/api/runs/${CUR_RUN}/decision`, {method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({decision, reason:$("#g_reason").value, edits})}); GATE_KEY=null; poll(); };
-  $("#gApprove").onclick = () => send("approve");
-  $("#gReject").onclick = () => send("reject");
-  $("#gEdit").onclick = () => { const e = {letter:$("#g_letter").value}; if ($("#g_subject")) { e.subject=$("#g_subject").value; e.body=$("#g_body").value; } send("edit", e); };
+const json = (method, body) => ({method, headers: {"content-type": "application/json"}, body: JSON.stringify(body)});
+function toast(msg, kind = "") {
+  const t = document.createElement("div"); t.className = "toast " + kind;
+  t.innerHTML = (kind === "ok" ? icon("check") : kind === "bad" ? icon("alert") : "") + `<span>${esc(msg)}</span>`;
+  $("#toasts").appendChild(t); setTimeout(() => t.remove(), kind === "bad" ? 7000 : 3500);
+}
+const store = { get(k, d) { try { return JSON.parse(localStorage.getItem("op." + k)) ?? d; } catch { return d; } },
+                set(k, v) { try { localStorage.setItem("op." + k, JSON.stringify(v)); } catch {} } };
+const initials = n => (n || "?").trim().split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase() || "?";
+function when(id) { // run ids look like 20261107-220759-ab12cd
+  const m = /^(\d{4})(\d\d)(\d\d)-(\d\d)(\d\d)(\d\d)/.exec(id || ""); if (!m) return "";
+  const d = new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5], +m[6]), s = (Date.now() - d) / 1000;
+  if (s < 60) return "just now"; if (s < 3600) return Math.floor(s / 60) + " min ago"; if (s < 86400) return Math.floor(s / 3600) + " h ago";
+  return d.toLocaleDateString(undefined, {day: "numeric", month: "short"}) + ", " + d.toLocaleTimeString(undefined, {hour: "2-digit", minute: "2-digit"});
+}
+const STATUS = {running: "Working", awaiting_approval: "Needs your OK", awaiting_input: "Has a question", done: "Done", stopped: "Stopped", error: "Error"};
+
+/* =================================================================== state */
+let CFG = {}, PROFILE = null, DIRTY = false, SKILLS = [], LANGS = [], FILES = [];
+let VIEW = "profile", CUR_RUN = store.get("run", null), RUN = null, POLL = null, LIST_POLL = null, GATE_KEY = null;
+let TARGET = "board", CHANNEL = "api", JOBS = [], PICKED = new Set();
+
+/* =================================================================== navigation */
+function show(v) {
+  VIEW = v; store.set("view", v);
+  $$("main>section").forEach(s => s.classList.toggle("hidden", s.id !== "v-" + v));
+  $$(".tab").forEach(b => b.classList.toggle("on", b.dataset.v === v));
+  $("#savebar").classList.toggle("show", DIRTY && v === "profile");
+  if (v === "apply") enterApply(); if (v === "runs") loadRuns(true); if (v === "sandbox") loadSandbox();
+  window.scrollTo({top: 0});
+}
+$$(".tab").forEach(b => b.onclick = () => show(b.dataset.v));
+document.addEventListener("click", e => { const g = e.target.closest("[data-go]"); if (g) show(g.dataset.go); });
+
+/* =================================================================== profile */
+async function loadProfiles(sel) {
+  const ps = await api("/api/profiles");
+  $("#profSel").innerHTML = ps.map(p => `<option value="${esc(p.user_id)}">${esc(p.name || p.user_id)}</option>`).join("");
+  const want = sel || store.get("profile", null);
+  if (want && ps.some(p => p.user_id === want)) $("#profSel").value = want;
+  await loadProfile($("#profSel").value);
+}
+async function loadProfile(id) {
+  if (!id) return; PROFILE = await api("/api/profile/" + id); store.set("profile", id);
+  fillEditor(PROFILE); setDirty(false); $("#delProf").disabled = id === "lina-test"; $("#impMsg").textContent = "";
+}
+$("#profSel").onchange = async e => {
+  if (DIRTY && !confirm("You have unsaved changes. Switch person and lose them?")) { e.target.value = PROFILE.user_id; return; }
+  await loadProfile(e.target.value);
+};
+function setDirty(d) { DIRTY = d; $("#savebar").classList.toggle("show", d && VIEW === "profile"); }
+$("#editor").addEventListener("input", () => { setDirty(true); refreshSummary(); });
+
+// ---- chip inputs (skills, languages)
+function chips(boxSel, inSel, arr) {
+  const box = $(boxSel), inp = $(inSel);
+  box.querySelectorAll(".tag").forEach(t => t.remove());
+  arr.forEach((v, i) => { const t = document.createElement("span"); t.className = "tag"; t.innerHTML = `${esc(v)}<button aria-label="Remove ${esc(v)}">×</button>`;
+    t.querySelector("button").onclick = () => { arr.splice(i, 1); chips(boxSel, inSel, arr); setDirty(true); refreshSummary(); }; box.insertBefore(t, inp); });
+  $("#skillCount").textContent = `${SKILLS.length} skills · ${LANGS.length} languages`;
+}
+function chipInput(inSel, boxSel, getArr) {
+  const inp = $(inSel);
+  inp.addEventListener("keydown", e => {
+    if ((e.key === "Enter" || e.key === ",") && inp.value.trim()) { e.preventDefault();
+      inp.value.split(",").map(s => s.trim()).filter(Boolean).forEach(v => { if (!getArr().some(x => x.toLowerCase() === v.toLowerCase())) getArr().push(v); });
+      inp.value = ""; chips(boxSel, inSel, getArr()); setDirty(true); refreshSummary(); }
+    else if (e.key === "Backspace" && !inp.value && getArr().length) { getArr().pop(); chips(boxSel, inSel, getArr()); setDirty(true); }
+  });
+  $(boxSel).onclick = e => { if (e.target === $(boxSel)) inp.focus(); };
+}
+chipInput("#skillIn", "#skillsBox", () => SKILLS); chipInput("#langIn", "#langsBox", () => LANGS);
+
+// ---- key/value rows (links, private)
+function kvRow(container, k = "", v = "", phK = "name", phV = "value", secret = false) {
+  const d = document.createElement("div"); d.className = "kv";
+  d.innerHTML = `<input class="k" value="${esc(k)}" placeholder="${phK}"><input class="v" ${secret ? 'type="password" autocomplete="off"' : ""} value="${esc(v)}" placeholder="${phV}">
+    <button class="btn sm ghost danger" aria-label="Remove">${icon("x")}</button>`;
+  d.querySelector("button").onclick = () => { d.remove(); setDirty(true); };
+  $(container).appendChild(d);
+}
+const readKv = sel => Object.fromEntries($$(sel + " .kv").map(d => [d.querySelector(".k").value.trim(), d.querySelector(".v").value.trim()]).filter(([k, v]) => k && v));
+$("#addLink").onclick = () => { kvRow("#links", "", "", "linkedin", "https://…"); setDirty(true); };
+$("#addPriv").onclick = () => { kvRow("#privs", "", "", "passport_number", "value", true); setDirty(true); };
+
+// ---- facts
+const KINDS = {experience: "Work", education: "Education", project: "Project", certification: "Certificate", award: "Award", volunteering: "Volunteering", other: "Other", user_confirmed: "Confirmed by you"};
+const KIND_COLOR = {experience: "#2b6cd4", education: "#7a4fd8", project: "#0e8a6a", certification: "#b06a00", award: "#c0262d", volunteering: "#a8447d", other: "#6b6880", user_confirmed: "#14804a"};
+function factRow(f) {
+  const d = document.createElement("div"); d.className = "fact";
+  d.innerHTML = `<span class="fid">${esc(f.id)}</span><div><select class="fkind" aria-label="Kind of fact">${Object.entries(KINDS).map(([k, l]) => `<option value="${k}" ${k === f.kind ? "selected" : ""}>${l}</option>`).join("")}</select>
+    <textarea class="ftext" placeholder="e.g. Working student in data engineering at Rhein Mobility, Darmstadt (2025–present): built Python ETL jobs.">${esc(f.text)}</textarea></div>
+    <button class="btn sm ghost danger" aria-label="Delete fact">${icon("trash")}</button>`;
+  const sel = d.querySelector("select"), paint = () => { sel.style.color = KIND_COLOR[sel.value]; sel.style.borderColor = KIND_COLOR[sel.value] + "55"; };
+  sel.onchange = paint; paint();
+  d.querySelector("button").onclick = () => { d.remove(); setDirty(true); countFacts(); refreshSummary(); };
+  return d;
+}
+const countFacts = () => { $("#factCount").textContent = $$("#facts .fact").length + " facts"; };
+$("#addFact").onclick = () => {
+  const n = Math.max(0, ...$$("#facts .fid").map(e => +e.textContent.slice(1) || 0)) + 1;
+  const row = factRow({id: "F" + n, kind: "experience", text: ""}); $("#facts").appendChild(row); row.querySelector("textarea").focus(); setDirty(true); countFacts();
+};
+
+function fillEditor(p) {
+  ["name", "email", "phone", "location", "headline"].forEach(k => $("#p_" + k).value = p[k] || "");
+  $("#links").innerHTML = ""; Object.entries(p.links || {}).forEach(([k, v]) => kvRow("#links", k, v, "linkedin", "https://…"));
+  $("#privs").innerHTML = ""; Object.entries(p.private || {}).forEach(([k, v]) => kvRow("#privs", k, v, "passport_number", "value", true));
+  SKILLS = [...(p.skills || [])]; LANGS = [...(p.languages || [])]; chips("#skillsBox", "#skillIn", SKILLS); chips("#langsBox", "#langIn", LANGS);
+  $("#facts").innerHTML = ""; (p.facts || []).forEach(f => $("#facts").appendChild(factRow(f))); countFacts();
+  $("#p_letters").value = (p.old_letters || []).join("\n---\n");
+  $("#letterCount").textContent = (p.old_letters || []).length ? (p.old_letters.length + " letters") : "";
+  refreshSummary();
+}
+function readEditor() {
+  return { user_id: PROFILE.user_id, name: $("#p_name").value.trim(), email: $("#p_email").value.trim(), phone: $("#p_phone").value.trim(),
+    location: $("#p_location").value.trim(), headline: $("#p_headline").value.trim(), links: readKv("#links"), skills: SKILLS, languages: LANGS,
+    facts: $$("#facts .fact").map(d => ({id: d.querySelector(".fid").textContent.trim(), kind: d.querySelector(".fkind").value, text: d.querySelector(".ftext").value.trim()})).filter(f => f.text),
+    old_letters: $("#p_letters").value.split(/\n-{3,}\n/).map(s => s.trim()).filter(Boolean), private: readKv("#privs") };
+}
+function refreshSummary() {
+  if (!PROFILE) return; const p = readEditor();
+  $("#whoName").textContent = p.name || "Unnamed"; $("#whoHead").textContent = p.headline || "Add a one-line headline";
+  const checks = [[!!p.name && !!p.email, "Name and email"], [p.facts.length >= 3, "At least 3 facts (jobs, studies, projects)"],
+    [p.skills.length >= 3, "At least 3 skills"], [p.languages.length >= 1, "Languages you speak"], [!!p.headline, "A headline"], [p.old_letters.length >= 1, "An old letter (for your writing style)"]];
+  const pct = Math.round(100 * checks.filter(c => c[0]).length / checks.length);
+  $("#ring").style.setProperty("--p", pct); $("#ringTxt").textContent = pct + "%";
+  $("#checklist").innerHTML = checks.map(([ok, t]) => `<li class="${ok ? "done" : ""}">${icon(ok ? "check" : "plus")}${t}</li>`).join("");
+}
+async function saveProfile() {
+  try { const p = readEditor(); if (!p.name) throw new Error("Please add a name first.");
+    await api("/api/profile/" + PROFILE.user_id, json("PUT", p)); PROFILE = p; setDirty(false); toast("Profile saved", "ok");
+    const opt = $(`#profSel option[value="${CSS.escape(p.user_id)}"]`); if (opt) opt.textContent = p.name;
+  } catch (e) { toast(e.message, "bad"); }
+}
+$("#saveProf").onclick = saveProfile; $("#saveProf2").onclick = saveProfile;
+$("#discard").onclick = () => { fillEditor(PROFILE); setDirty(false); };
+window.addEventListener("beforeunload", e => { if (DIRTY) { e.preventDefault(); e.returnValue = ""; } });
+
+// ---- new / delete person
+const slug = n => n.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 30) || "user";
+$("#newProf").onclick = () => { $("#newName").value = ""; $("#newDlg").showModal(); };
+$("#newDlg").addEventListener("close", async () => {
+  if ($("#newDlg").returnValue !== "ok") return; const name = $("#newName").value.trim(); if (!name) return;
+  const taken = [...$("#profSel").options].map(o => o.value); let id = slug(name), n = 2; while (taken.includes(id)) id = slug(name) + "-" + (n++);
+  try { await api("/api/profile/" + id, json("PUT", {user_id: id, name, email: ""})); await loadProfiles(id);
+    toast(`Created ${name}. Now drop in a CV or LinkedIn PDF.`, "ok"); $("#drop").scrollIntoView({behavior: "smooth", block: "center"}); }
+  catch (e) { toast(e.message, "bad"); }
+});
+$("#delProf").onclick = async () => {
+  if (!confirm(`Delete the profile of ${PROFILE.name || PROFILE.user_id}? This cannot be undone.`)) return;
+  try { await api("/api/profile/" + PROFILE.user_id, {method: "DELETE"}); store.set("profile", null); await loadProfiles(); toast("Profile deleted"); } catch (e) { toast(e.message, "bad"); }
+};
+
+// ---- import
+const drop = $("#drop");
+drop.onclick = () => $("#impFiles").click(); drop.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("#impFiles").click(); } };
+["dragenter", "dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => addFiles(e.dataTransfer.files));
+$("#impFiles").onchange = e => { addFiles(e.target.files); e.target.value = ""; };
+function addFiles(list) { FILES.push(...list); renderFiles(); }
+function renderFiles() {
+  $("#fileChips").innerHTML = FILES.map((f, i) => `<span class="tag">${icon("file")} ${esc(f.name)}<button data-i="${i}" aria-label="Remove file">×</button></span>`).join("");
+  $$("#fileChips button").forEach(b => b.onclick = () => { FILES.splice(+b.dataset.i, 1); renderFiles(); });
+}
+$("#impBtn").onclick = async () => {
+  const fd = new FormData(); fd.append("user_id", PROFILE.user_id); fd.append("base", JSON.stringify(readEditor()));
+  fd.append("urls", $("#impUrls").value); fd.append("pasted", $("#impText").value); FILES.forEach(f => fd.append("files", f));
+  const b = $("#impBtn"); b.disabled = true; b.innerHTML = `<span class="spin"></span>Reading… up to a minute`;
+  try { const r = await api("/api/profile/import", {method: "POST", body: fd}); fillEditor(r.draft); setDirty(true); FILES = []; renderFiles();
+    $("#impMsg").textContent = ""; toast(`Found ${r.facts} facts and ${r.skills} skills. Check them, then save.`, "ok");
+    $("#facts").scrollIntoView({behavior: "smooth", block: "start"}); }
+  catch (e) { toast(e.message, "bad"); }
+  finally { b.disabled = false; b.innerHTML = icon("sparkle") + "Read my documents"; }
+};
+
+/* =================================================================== apply */
+async function enterApply() {
+  $("#applyWho").textContent = PROFILE ? (PROFILE.name || PROFILE.user_id) : "nobody yet"; $("#applyAvatar").textContent = initials(PROFILE?.name);
+  if (!JOBS.length) await loadJobs(); updateApply();
+}
+$("#changeWho").onclick = e => { e.preventDefault(); show("profile"); };
+async function loadJobs() {
+  try { const r = await api("/api/jobs"); JOBS = r.results || [];
+    if (!r.up) $("#jobGrid").innerHTML = `<div class="empty">${icon("alert")}<div>The test board isn't available${CFG.mode === "real" ? " in real mode" : ""}.</div></div>`; else renderJobs(); }
+  catch { JOBS = []; }
+}
+function renderJobs() {
+  const q = $("#jobFilter").value.toLowerCase().trim();
+  const list = JOBS.filter(j => !q || [j.id, j.title, j.company, j.location, ...(j.tags || [])].join(" ").toLowerCase().includes(q));
+  $("#jobGrid").innerHTML = list.map(j => `<button class="job ${PICKED.has(j.id) ? "on" : ""}" data-id="${esc(j.id)}" aria-pressed="${PICKED.has(j.id)}">
+    <span class="tick">${PICKED.has(j.id) ? icon("check") : ""}</span><div class="t">${esc(j.title)}</div><div class="c">${esc(j.company)} · ${esc(j.location)}</div>
+    <div class="meta"><span class="mini mono">${esc(j.id)}</span>${j.attack ? `<span class="mini atk" title="This test posting hides instructions aimed at the AI">${icon("shield")} hidden attack</span>` : ""}${(j.tags || []).slice(0, 3).map(t => `<span class="mini">${esc(t)}</span>`).join("")}</div></button>`).join("")
+    || `<div class="empty">No jobs match “${esc(q)}”.</div>`;
+  $$("#jobGrid .job").forEach(b => b.onclick = () => { const id = b.dataset.id; PICKED.has(id) ? PICKED.delete(id) : PICKED.add(id); renderJobs(); updateApply(); });
+}
+$("#jobFilter").oninput = renderJobs;
+$$("#targets .choice").forEach(b => b.onclick = () => { TARGET = b.dataset.t; updateApply(); });
+$$("#channels .choice").forEach(b => b.onclick = () => { CHANNEL = b.dataset.c; updateApply(); });
+["#jobText", "#jobUrl", "#search", "#contactEmail", "#applyUrl", "#maxApps", "#jobTitle", "#jobCompany"].forEach(s => $(s).addEventListener("input", updateApply));
+
+function applyProblem() {
+  if (!PROFILE) return "Create a profile first.";
+  if (CFG.model_problem) return "The AI model isn't set up yet (see the red banner).";
+  if (TARGET === "board" && !PICKED.size) return "Pick at least one job above.";
+  if (TARGET === "paste" && $("#jobText").value.trim().length < 100) return "Paste the whole job posting (at least a few sentences).";
+  if (TARGET === "url" && !/^https?:\/\/\S+/.test($("#jobUrl").value.trim())) return "Enter a job link starting with https://";
+  if (TARGET === "search" && $("#search").value.trim().length < 2) return "Type what kind of job to look for.";
+  if (CHANNEL === "api" && (TARGET === "paste" || TARGET === "url")) return "Job board submission only works for test-board jobs. Choose email or form.";
+  if (CHANNEL === "email" && (TARGET === "paste" || TARGET === "url") && !/^\S+@\S+\.\S+$/.test($("#contactEmail").value.trim())) return "Enter the email address to apply to.";
+  if (CHANNEL === "form" && TARGET === "paste" && !/^https?:\/\//.test($("#applyUrl").value.trim())) return "Enter the link to the application form.";
+  return "";
+}
+function updateApply() {
+  $$("#targets .choice").forEach(b => b.classList.toggle("on", b.dataset.t === TARGET));
+  $$("#channels .choice").forEach(b => b.classList.toggle("on", b.dataset.c === CHANNEL));
+  ["board", "paste", "url", "search"].forEach(t => $("#t-" + t).classList.toggle("hidden", t !== TARGET));
+  const own = TARGET === "paste" || TARGET === "url";
+  $("#t-details").classList.toggle("hidden", !own);
+  $("#detailsHint").textContent = TARGET === "url" ? "Optional: read from the page if empty. These appear on your cover letter." : "Recommended: these appear on your cover letter.";
+  $("#emailBox").classList.toggle("hidden", !(CHANNEL === "email" && own));
+  $("#formBox").classList.toggle("hidden", CHANNEL !== "form"); $("#applyUrlBox").classList.toggle("hidden", TARGET !== "paste");
+  const noBoard = own || CFG.mode === "real";
+  $('#channels [data-c="api"]').disabled = noBoard; if (noBoard && CHANNEL === "api") { CHANNEL = "email"; return updateApply(); }
+  const what = TARGET === "board" ? (PICKED.size ? `<b>${PICKED.size} job${PICKED.size > 1 ? "s" : ""}</b> (${[...PICKED].join(", ")})` : "")
+    : TARGET === "paste" ? `<b>${esc($("#jobTitle").value.trim() || "your pasted posting")}</b>` : TARGET === "url" ? "<b>the job at your link</b>"
+    : `the best <b>${$("#maxApps").value}</b> match${+$("#maxApps").value > 1 ? "es" : ""} for “${esc($("#search").value.trim())}”`;
+  const how = {api: "submit on the board", email: "send by email", form: "fill the form (you submit)"}[CHANNEL];
+  const prob = applyProblem();
+  $("#sumText").innerHTML = prob ? esc(prob) : `Apply to ${what} as <b>${esc(PROFILE.name)}</b> · ${how}`;
+  $("#startBtn").disabled = !!prob;
+}
+$("#startBtn").onclick = async () => {
+  const own = TARGET === "paste" || TARGET === "url";
+  const body = { user_id: PROFILE.user_id, channel: CHANNEL, notes: $("#notes").value, show_browser: $("#showBrowser").checked,
+    job_ids: TARGET === "board" ? [...PICKED] : [], job_url: TARGET === "url" ? $("#jobUrl").value.trim() : "",
+    job_text: TARGET === "paste" ? $("#jobText").value : "", apply_url: TARGET === "paste" ? $("#applyUrl").value.trim() : "",
+    job_title: own ? $("#jobTitle").value.trim() : "", job_company: own ? $("#jobCompany").value.trim() : "", job_location: own ? $("#jobLocation").value.trim() : "",
+    contact_email: own ? $("#contactEmail").value.trim() : "", search: TARGET === "search" ? $("#search").value.trim() : "", max_submissions: +$("#maxApps").value || 1 };
+  const b = $("#startBtn"); b.disabled = true; b.innerHTML = `<span class="spin"></span>Starting…`;
+  try { const r = await api("/api/runs", json("POST", body)); CUR_RUN = r.run_id; store.set("run", CUR_RUN); RUN = null; GATE_KEY = null;
+    PICKED.clear(); renderJobs(); show("runs"); toast("Started. Follow along here.", "ok"); }
+  catch (e) { toast(e.message, "bad"); }
+  finally { b.innerHTML = icon("play") + "Start"; updateApply(); }
+};
+
+/* =================================================================== runs */
+async function loadRuns(alsoRun) {
+  let rs = [];
+  try { rs = await api("/api/runs"); } catch { return; }
+  const need = rs.filter(r => r.status === "awaiting_approval" || r.status === "awaiting_input").length;
+  $("#needBadge").textContent = need; $("#needBadge").classList.toggle("hidden", !need);
+  if (VIEW !== "runs") return schedList(rs);
+  if (!CUR_RUN || !rs.some(r => r.run_id === CUR_RUN)) CUR_RUN = rs[0]?.run_id || null;
+  $("#runList").innerHTML = rs.map(r => `<button class="runitem ${r.run_id === CUR_RUN ? "on" : ""}" data-id="${esc(r.run_id)}">
+      <div class="t">${esc(r.jobs?.length ? r.jobs.join(", ") : r.goal.split("\n")[0])}</div>
+      <div class="when"><span>${when(r.run_id)}</span><span class="status ${r.status}">${STATUS[r.status] || r.status}</span></div></button>`).join("")
+    || `<div class="empty small">No runs yet.</div>`;
+  $$("#runList .runitem").forEach(b => b.onclick = () => { CUR_RUN = b.dataset.id; store.set("run", CUR_RUN); RUN = null; GATE_KEY = null; loadRuns(true); });
+  $("#runEmpty").classList.toggle("hidden", !!CUR_RUN); $("#runView").classList.toggle("hidden", !CUR_RUN);
+  if (alsoRun && CUR_RUN) pollRun();
+  schedList(rs);
+}
+function schedList(rs) { clearTimeout(LIST_POLL); const live = rs.some(r => r.status === "running");
+  LIST_POLL = setTimeout(() => loadRuns(false), live ? 2500 : 8000); }
+async function pollRun() {
+  clearTimeout(POLL); if (!CUR_RUN || VIEW !== "runs") return;
+  try { const r = await api("/api/runs/" + CUR_RUN); RUN = r; renderRun(r);
+    if (r.busy || r.status === "running") POLL = setTimeout(pollRun, 1000); }
+  catch (e) { toast(e.message, "bad"); }
 }
 
-// ---------- sandbox
-async function loadSandbox(){ const s = await api("/api/sandbox");
-  if (!s.up) { $("#sbApps").innerHTML = "<tr><td>Sandbox is not running.</td></tr>"; $("#sbMail").innerHTML=""; return; }
-  $("#sbApps").innerHTML = "<tr><th>#</th><th>User</th><th>Job</th><th>Channel</th><th>Time</th></tr>" + s.applications.map(a=>`<tr><td>${a.id}</td><td>${esc(a.user_id)}</td><td>${esc(a.job_id)}</td><td>${esc(a.channel)}</td><td>${new Date(a.created_at*1000).toLocaleTimeString()}</td></tr>`).join("");
-  $("#sbMail").innerHTML = "<tr><th>To</th><th>Subject</th><th>Body</th></tr>" + s.mail.map(m=>`<tr><td>${esc(m.recipient)}</td><td>${esc(m.subject)}</td><td>${esc(m.body.slice(0,300))}</td></tr>`).join(""); }
-$("#sbRefresh").onclick = loadSandbox; $("#sbReset").onclick = async () => { if (confirm("Delete all sandbox applications and mail?")) { await api("/api/sandbox/reset",{method:"POST"}); loadSandbox(); } };
+const LABEL = {
+  get_profile: () => "Read your profile",
+  search_jobs: i => `Searched the board for “${i.query}”`,
+  get_job: (i, o) => `Read the job posting${o?.job?.title ? ": " + o.job.title : " " + i.job_id}`,
+  read_job_url: (i, o) => `Read the job page${o?.job?.title ? ": " + o.job.title : ""}`,
+  ask_user: () => "Asked you a question",
+  check_documents: (i, o) => !o?.grounding ? "Fact-check the draft" : !o.grounding.ok ? `Fact-checked the draft: found ${o.grounding.errors.length} claim${o.grounding.errors.length > 1 ? "s" : ""} to fix` : "Fact-checked the draft: all claims backed by your profile",
+  save_documents: () => "Wrote your tailored CV and cover letter",
+  submit_application: () => "Submitted the application on the job board",
+  send_application_email: (i, o) => `Sent the application email${o?.to ? " to " + o.to : ""}`,
+  inspect_application_form: () => "Looked at the application form",
+  fill_application_form: () => "Filled in the application form (you click Submit)",
+  finish: () => "Finished",
+};
+const TOOL_ICON = {get_profile: "user", search_jobs: "search", get_job: "file", read_job_url: "link", ask_user: "question", check_documents: "shield",
+  save_documents: "pen", submit_application: "send", send_application_email: "mail", inspect_application_form: "form", fill_application_form: "form", finish: "flag"};
+const WRITE_TOOLS = ["submit_application", "send_application_email", "fill_application_form"];
 
-// ---------- boot
-(async () => { CFG = await api("/api/config"); $("#mode").textContent = CFG.mode + " mode"; $("#mode").classList.add(CFG.mode);
-  $("#model").textContent = CFG.model; $("#keywarn").classList.toggle("hidden", CFG.has_key); $("#boardLink").href = CFG.sandbox_url;
-  await loadProfiles(); })();
+function stepperState(r) {
+  const ok = n => r.trajectory.some(s => s.ok && (Array.isArray(n) ? n.includes(s.tool) : s.tool === n));
+  const steps = [["Profile", ok("get_profile")], ["Job", ok(["get_job", "read_job_url"])], ["Documents", ok("save_documents")],
+    ["Your OK", r.trajectory.some(s => s.decision) || ok(WRITE_TOOLS)], ["Applied", r.trajectory.some(s => s.ok && WRITE_TOOLS.includes(s.tool))],
+    ["Done", r.status === "done"]];
+  const firstOpen = steps.findIndex(s => !s[1]); const failed = ["stopped", "error"].includes(r.status);
+  return steps.map(([l, d], i) => ({l, cls: d ? "done" : i === firstOpen ? (failed ? "fail" : "now") : ""}));
+}
+function injectionHits(r) {
+  const out = [];
+  for (const s of r.trajectory) { const o = s.output || {};
+    for (const k of ["description", "page", "old_letters_for_style_only"]) { const w = o[k];
+      if (w && w.suspected_injection?.length) out.push({src: w.source, hits: w.suspected_injection}); } }
+  return out;
+}
+function renderRun(r) {
+  const jobs = Object.values(r.pending?.preview?.job ? {x: r.pending.preview.job} : {});
+  const titles = [...new Set(r.trajectory.map(s => s.output?.job?.title && `${s.output.job.title}${s.output.job.company ? " · " + s.output.job.company : ""}`).filter(Boolean))];
+  $("#rTitle").textContent = titles.join(", ") || jobs[0]?.title || "Application run";
+  $("#rSub").innerHTML = `${esc(r.profile_name || "")} · started ${when(r.run_id)} · <details style="display:inline"><summary style="display:inline;cursor:pointer">what you asked</summary><pre>${esc(r.goal)}</pre></details>`;
+  $("#rStatus").className = "status " + r.status; $("#rStatus").textContent = (r.busy && r.status === "running" ? "Working…" : STATUS[r.status] || r.status);
+  $("#stepper").innerHTML = stepperState(r).map(s => `<div class="st ${s.cls}"><span class="b">${s.cls === "done" ? icon("check") : s.cls === "fail" ? icon("x") : ""}</span>${s.l}</div>`).join("");
+  const f = r.final, stopped = ["stopped", "error"].includes(r.status);
+  $("#rResult").innerHTML = f ? `<div class="alert ${f.status === "completed" ? "ok" : "warn"}">${icon(f.status === "completed" ? "check" : "alert")}<div class="alert-body"><b>${esc({completed: "Done", no_suitable_job: "No suitable job found", user_declined: "Stopped at your request", blocked: "Couldn't finish", needs_user: "Needs your input"}[f.status] || f.status)}</b>${esc(f.summary)}</div></div>`
+    : stopped ? `<div class="alert bad">${icon("stop")}<div class="alert-body"><b>The run was stopped</b>${esc(r.stop_reason)}</div></div>` : "";
+  const L = CFG.limits || {};
+  const meter = (k, v, max, fmt = x => x) => `<div class="meter"><div class="k">${k}</div><div class="v">${fmt(v)}<span class="muted small" style="font-weight:500"> / ${fmt(max)}</span></div><div class="bar"><i style="width:${Math.min(100, 100 * v / max)}%"></i></div></div>`;
+  const tokens = r.tokens_in + (r.tokens_cache_write || 0) + (r.tokens_cache_read || 0) + r.tokens_out;
+  $("#meters").innerHTML = meter("Steps", r.tool_calls, L.max_steps || 20) + meter("Cost", r.cost_usd, L.max_cost_usd || .5, x => "$" + (+x).toFixed(x < .01 ? 4 : 3)) +
+    `<div class="meter"><div class="k">Time</div><div class="v">${Math.round(r.seconds)}s</div></div><div class="meter"><div class="k">Tokens</div><div class="v">${tokens.toLocaleString()}</div>${r.tokens_cache_read ? `<div class="small muted">${r.tokens_cache_read.toLocaleString()} from cache</div>` : ""}</div>`;
+  $("#rDocs").innerHTML = Object.entries(r.documents || {}).map(([j, d]) =>
+    `<a class="btn sm" target="_blank" href="/api/file?path=${encodeURIComponent(d.cv_pdf)}">${icon("file")}CV · ${esc(j)}</a><a class="btn sm" target="_blank" href="/api/file?path=${encodeURIComponent(d.letter_pdf)}">${icon("file")}Letter · ${esc(j)}</a>`).join("");
+  renderGate(r); renderFeed(r);
+}
+function renderFeed(r) {
+  const items = [];
+  for (const e of r.events) {
+    if (e.kind === "thought") items.push(`<li class="think"><span class="ic">${icon("brain")}</span><div><div class="d">${esc(e.text)}</div></div></li>`);
+    else if (e.kind === "checkpoint") items.push(`<li class="you"><span class="ic">${icon("question")}</span><div><div class="ttl">${e.tool === "ask_user" ? "Waiting for your answer" : "Waiting for your approval"}</div></div></li>`);
+    else if (e.kind === "decision") items.push(`<li class="you"><span class="ic">${icon("user")}</span><div><div class="ttl">You ${e.decision === "reject" ? "said no" : e.decision === "edit" ? "approved with your edits" : "approved"}</div>${e.reason ? `<div class="d">“${esc(e.reason)}”</div>` : ""}</div></li>`);
+    else if (e.kind === "auto_retry") items.push(`<li class="err"><span class="ic">${icon("refresh")}</span><div><div class="ttl">A service hiccuped, retrying automatically</div><div class="d">${esc(e.error)}</div></div></li>`);
+    else if (e.kind === "stopped" || e.kind === "error") items.push(`<li class="err"><span class="ic">${icon("stop")}</span><div><div class="ttl">Stopped</div><div class="d">${esc(e.reason || e.error)}</div></div></li>`);
+    else if (e.kind === "tool") {
+      const o = e.output || {}, lbl = (LABEL[e.tool] || (() => e.tool))(e.input || {}, o);
+      const inj = ["description", "page", "old_letters_for_style_only"].map(k => o[k]?.suspected_injection?.length).some(Boolean);
+      const rejected = e.decision === "rejected";
+      items.push(`<li class="${e.ok ? "ok" : "err"}"><span class="ic">${icon(e.ok ? (TOOL_ICON[e.tool] || "check") : "x")}</span><div>
+        <div class="ttl">${rejected ? "Not done (you said no): " : !e.ok ? "Tried: " : ""}${esc(lbl)}</div>
+        ${!e.ok && !rejected ? `<div class="d">${esc(o.error)}${o.hint ? ` <span class="muted">→ ${esc(o.hint)}</span>` : ""}</div>` : ""}
+        ${e.tool === "finish" ? `<div class="d">${esc(e.input?.summary)}</div>` : ""}
+        ${inj ? `<span class="shield">${icon("shield")} spotted text trying to instruct the AI, so it was treated as data only</span>` : ""}
+        <details><summary>details · ${e.ms} ms${e.error_class ? " · " + esc(e.error_class) : ""}</summary><pre>${esc(JSON.stringify(e.input, null, 1))}</pre><pre>${esc(JSON.stringify(o, null, 1))}</pre></details></div></li>`);
+    }
+  }
+  if (r.busy || r.status === "running") items.push(`<li class="think"><span class="ic"><span class="spin"></span></span><div><div class="ttl">Thinking…</div></div></li>`);
+  $("#feed").innerHTML = items.join("") || `<li><div></div><div class="muted">Nothing yet.</div></li>`;
+}
+
+/* ---------- approval / question */
+function paperCV(cv, name) {
+  if (!cv) return `<p class="muted">No CV in this step.</p>`;
+  const cite = ids => ids?.length ? `<span class="cite" title="Based on your profile facts">${esc(ids.join(", "))}</span>` : "";
+  return `<div class="paper"><div class="nm">${esc(name)}</div><div class="hl">${esc(cv.headline)}</div>
+    ${cv.summary?.text ? `<h4>Profile</h4><div>${esc(cv.summary.text)}${cite(cv.summary.fact_ids)}</div>` : ""}
+    ${(cv.sections || []).map(s => `<h4>${esc(s.title)}</h4>${s.items.map(i => `<div class="it"><b>${esc(i.heading)}</b>${cite(i.fact_ids)}${i.text ? `<br>${esc(i.text)}` : ""}</div>`).join("")}`).join("")}
+    ${cv.skills?.length ? `<h4>Skills</h4>${esc(cv.skills.join(" · "))}` : ""}${cv.languages?.length ? `<h4>Languages</h4>${esc(cv.languages.join(" · "))}` : ""}</div>`;
+}
+function renderGate(r) {
+  const p = r.pending;
+  if (!p) { if (GATE_KEY) { $("#gate").innerHTML = ""; GATE_KEY = null; } return; }
+  if (GATE_KEY === p.tool_use_id) return;     // already shown: keep the user's edits
+  GATE_KEY = p.tool_use_id; const v = p.preview || {};
+
+  if (p.kind === "input") {
+    $("#gate").innerHTML = `<div class="card gate"><span class="kicker">${icon("question")} The agent has a question</span><h2>${esc(v.question)}</h2>
+      <label class="f" for="ans">Your answer</label><textarea id="ans" placeholder="Yes / no, and any detail…"></textarea>
+      <label class="f" for="ansFact">Is this a new true fact about you? Write it as one sentence and it can be used in your CV</label>
+      <input id="ansFact" placeholder="e.g. Used Docker in a university project (2025)">
+      <div class="decide"><button class="btn primary big" id="ansBtn">${icon("send")}Send answer</button></div></div>`;
+    $("#ansBtn").onclick = async () => { $("#ansBtn").disabled = true;
+      try { await api(`/api/runs/${CUR_RUN}/answer`, json("POST", {text: $("#ans").value.trim() || "No.", add_fact: $("#ansFact").value.trim()})); GATE_KEY = null; toast("Answer sent", "ok"); pollRun(); }
+      catch (e) { toast(e.message, "bad"); $("#ansBtn").disabled = false; } };
+    $("#gate").scrollIntoView({behavior: "smooth", block: "start"}); return;
+  }
+
+  const job = v.job || {}, g = v.grounding || {errors: [], warnings: []}, inj = injectionHits(r);
+  const verb = {submit_application: "Submit", send_application_email: "Send email", fill_application_form: "Fill the form"}[p.tool] || "Approve";
+  const tabs = [["letter", "Cover letter"], ["cv", "CV"]]; if (v.subject) tabs.unshift(["email", "Email"]); if (v.values) tabs.unshift(["form", "Form answers"]);
+  $("#gate").innerHTML = `<div class="card gate">
+    <span class="kicker">${icon("alert")} Your approval is needed</span>
+    <h2>${esc(v.action || verb)}</h2>
+    <div class="facts-line"><span>Job: <b>${esc(job.title || job.id)}</b></span>${job.company ? `<span>Company: <b>${esc(job.company)}</b></span>` : ""}
+      ${v.to ? `<span>To: <b>${esc(v.to)}</b> <span class="muted small">(address on record, not from the posting)</span></span>` : ""}</div>
+    ${inj.length ? `<div class="alert warn">${icon("shield")}<div class="alert-body"><b>Attack spotted and neutralised</b>This posting contains text aimed at the AI. It was handled as plain data, never as instructions:<ul>${inj.map(i => `<li><i>“…${esc(i.hits[0].replace(/^\S*\s+/, ""))}…”</i></li>`).join("")}</ul></div></div>` : ""}
+    ${g.errors?.length ? `<div class="alert bad">${icon("alert")}<div class="alert-body"><b>Claims your profile doesn't support</b><ul>${g.errors.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div></div>`
+      : `<div class="alert ok">${icon("check")}<div class="alert-body"><b>Fact check passed</b>Every claim traces back to your profile. The small grey codes in the CV show which fact.</div></div>`}
+    ${g.warnings?.length ? `<div class="alert warn">${icon("alert")}<div class="alert-body"><b>Please double-check</b><ul>${g.warnings.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div></div>` : ""}
+    <div class="dtabs" role="tablist">${tabs.map(([k, l], i) => `<button class="dtab ${i ? "" : "on"}" data-k="${k}" role="tab">${l}</button>`).join("")}</div>
+    <div class="dpanel" data-k="email" ${tabs[0][0] === "email" ? "" : "hidden"}>${v.subject ? `<label class="f" for="g_subject">Subject</label><input id="g_subject" value="${esc(v.subject)}">
+      <label class="f" for="g_body">Message <span class="muted" style="font-weight:400">(CV and letter PDFs are attached)</span></label><textarea id="g_body" style="min-height:150px">${esc(v.body)}</textarea>` : ""}</div>
+    <div class="dpanel" data-k="form" ${tabs[0][0] === "form" ? "" : "hidden"}>${v.values ? `<table class="kvt">${Object.entries(v.values).map(([k, x]) => `<tr><td>${esc(k)}</td><td>${esc(x)}</td></tr>`).join("")}</table>
+      ${v.left_for_user?.length ? `<p class="small muted">Left empty for you (sensitive): ${esc(v.left_for_user.join(", "))}</p>` : ""}<div class="alert info">${icon("form")}<div class="alert-body">The agent only fills in the fields. <b style="display:inline">You</b> review the page and click Submit yourself.</div></div>` : ""}</div>
+    <div class="dpanel" data-k="letter" ${tabs[0][0] === "letter" ? "" : "hidden"}><div class="small muted" style="margin-bottom:8px">You can edit the letter right here. <span class="edited hidden" id="editedTag">edited</span></div>
+      <textarea class="paper" id="g_letter">${esc(v.letter)}</textarea></div>
+    <div class="dpanel" data-k="cv" hidden>${paperCV(v.cv, r.profile_name)}</div>
+    <div class="docs">${v.cv_pdf ? `<a class="btn sm" target="_blank" href="/api/file?path=${encodeURIComponent(v.cv_pdf)}">${icon("file")}Open CV.pdf</a>` : ""}${v.letter_pdf ? `<a class="btn sm" target="_blank" href="/api/file?path=${encodeURIComponent(v.letter_pdf)}">${icon("file")}Open Letter.pdf</a>` : ""}</div>
+    <div class="changes hidden" id="changeBox"><label class="f" for="g_reason" style="margin-top:0">What should it change?</label>
+      <textarea id="g_reason" style="min-height:70px" placeholder="e.g. Make the letter shorter and write it in German."></textarea>
+      <div class="actions"><button class="btn primary" id="gSendChanges">${icon("send")}Send back with these changes</button><button class="btn ghost" id="gCancelChanges">Cancel</button></div></div>
+    <div class="decide"><button class="btn primary big" id="gApprove">${icon("check")}${esc(verb)}</button>
+      <button class="btn" id="gChanges">${icon("pen")}Ask for changes</button><span class="grow"></span>
+      <button class="btn danger ghost" id="gReject">${icon("x")}Don't apply</button></div></div>`;
+
+  $$("#gate .dtab").forEach(t => t.onclick = () => { $$("#gate .dtab").forEach(x => x.classList.toggle("on", x === t));
+    $$("#gate .dpanel").forEach(pn => pn.hidden = pn.dataset.k !== t.dataset.k); });
+  const orig = {letter: v.letter || "", subject: v.subject || "", body: v.body || ""};
+  const edits = () => { const e = {}; if ($("#g_letter").value !== orig.letter) e.letter = $("#g_letter").value;
+    if ($("#g_subject") && ($("#g_subject").value !== orig.subject || $("#g_body").value !== orig.body)) { e.subject = $("#g_subject").value; e.body = $("#g_body").value; } return e; };
+  $("#gate").addEventListener("input", () => { const n = Object.keys(edits()).length; $("#editedTag").classList.toggle("hidden", !n);
+    $("#gApprove").innerHTML = icon("check") + esc(n ? verb + " with my edits" : verb); });
+  const send = async (decision, reason = "", ed = null) => {
+    $$("#gate button").forEach(b => b.disabled = true);
+    try { await api(`/api/runs/${CUR_RUN}/decision`, json("POST", {decision, reason, edits: ed})); GATE_KEY = null;
+      toast(decision === "reject" ? (reason ? "Sent back to the agent" : "Okay, not applying") : "Approved", "ok"); pollRun(); }
+    catch (e) { toast(e.message, "bad"); $$("#gate button").forEach(b => b.disabled = false); }
+  };
+  $("#gApprove").onclick = () => { const e = edits(); Object.keys(e).length ? send("edit", "", e) : send("approve"); };
+  $("#gChanges").onclick = () => { $("#changeBox").classList.remove("hidden"); $("#g_reason").focus(); };
+  $("#gCancelChanges").onclick = () => $("#changeBox").classList.add("hidden");
+  $("#gSendChanges").onclick = () => { const why = $("#g_reason").value.trim(); if (!why) return $("#g_reason").focus(); send("reject", "Please change this and show me again: " + why); };
+  $("#gReject").onclick = () => { if (confirm("Don't apply to this job?")) send("reject", "I do not want to apply to this job."); };
+  $("#gate").scrollIntoView({behavior: "smooth", block: "start"});
+}
+
+/* =================================================================== sandbox */
+async function loadSandbox() {
+  const s = await api("/api/sandbox").catch(() => ({up: false, applications: [], mail: []}));
+  $("#sbDown").classList.toggle("hidden", s.up);
+  $("#sbAppsN").textContent = s.applications.length; $("#sbMailN").textContent = s.mail.length;
+  const t = x => new Date(x * 1000).toLocaleString(undefined, {day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"});
+  $("#sbApps").innerHTML = s.applications.slice().reverse().map(a => `<div class="item"><div class="h"><span>${esc(a.job_id)}</span><span class="mini">${esc(a.channel)}</span></div><div class="m">${esc(a.user_id)} · ${t(a.created_at)}</div></div>`).join("")
+    || `<div class="empty">${icon("inbox")}<div>Nothing submitted yet.</div></div>`;
+  $("#sbMail").innerHTML = s.mail.slice().reverse().map(m => `<div class="item"><div class="h"><span>${esc(m.subject)}</span></div><div class="m">To <b>${esc(m.recipient)}</b> · ${t(m.created_at)}</div>
+    <details><summary>Read message</summary><pre>${esc(m.body)}</pre></details></div>`).join("") || `<div class="empty">${icon("mail")}<div>No emails sent yet.</div></div>`;
+}
+$("#sbRefresh").onclick = () => loadSandbox().then(() => toast("Refreshed"));
+$("#sbReset").onclick = async () => { if (!confirm("Delete all test applications and emails?")) return;
+  try { await api("/api/sandbox/reset", {method: "POST"}); await loadSandbox(); toast("Sandbox reset", "ok"); } catch (e) { toast(e.message, "bad"); } };
+
+/* =================================================================== boot */
+(async () => {
+  try { CFG = await api("/api/config"); } catch { toast("Can't reach the app server. Is python run.py running?", "bad"); return; }
+  $("#modeChip").className = "chip " + (CFG.mode === "sandbox" ? "safe" : "real");
+  $("#modeChip").innerHTML = CFG.mode === "sandbox" ? icon("shield") + `<span class="lbl">Test mode · nothing real is sent</span>` : icon("alert") + `<span class="lbl">REAL mode · emails really go out</span>`;
+  $("#modeChip").title = CFG.mode === "sandbox" ? "Test mode: everything goes to the sandbox" : "Real mode";
+  $("#modelName").textContent = CFG.model; $("#modelDot").className = "dot " + (CFG.model_problem ? "bad" : "ok");
+  $("#modelChip").title = CFG.model_problem || `Model ready (${CFG.provider})`;
+  $("#modelBanner").classList.toggle("hidden", !CFG.model_problem); $("#modelProblem").textContent = " " + (CFG.model_problem || "");
+  $("#boardLink").href = CFG.sandbox_url;
+  await loadProfiles();
+  show(store.get("view", "profile"));
+  if (VIEW !== "runs") loadRuns(false);
+})();
 </script>
 </body>
 </html>
