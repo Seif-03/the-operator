@@ -6,6 +6,7 @@ Approvals are asked in the terminal.
 from __future__ import annotations
 
 import argparse
+import re
 import json
 from pathlib import Path
 
@@ -13,12 +14,15 @@ from .config import Settings, get_settings
 from .llm import LLMError, UnavailableLLM, make_llm
 from .loop import AgentRun, new_run_id
 from .profile import Profile, load_profile
-from .tools import RunContext
+from . import tracing
+from .tools import RunContext, url_job_id
 
 CHANNEL_TEXT = {
     "api": "Submit through the job board (submit_application).",
     "email": "Apply by email (send_application_email).",
     "form": "Fill the job's online application form (inspect_application_form, then fill_application_form). The user clicks Submit.",
+    "browser": "Apply on the job's website with the browser (browser_fill_application, then browser_submit_application, "
+               "which the user approves).",
 }
 
 
@@ -30,7 +34,7 @@ def make_logger(settings: Settings):
 
 
 def build_goal(job_ids: list[str], job_url: str | None, search: str | None, channel: str, extra: str = "", k: int = 1,
-               pasted_job_id: str | None = None) -> str:
+               pasted_job_id: str | None = None, web_search: bool = False, location: str = "", sites: list[str] | None = None) -> str:
     parts = []
     if pasted_job_id:
         parts.append(f"Apply for the job posting I pasted. Read it with get_job (job id {pasted_job_id}).")
@@ -38,7 +42,12 @@ def build_goal(job_ids: list[str], job_url: str | None, search: str | None, chan
         parts.append(f"Apply for job(s): {', '.join(job_ids)}.")
     if job_url:
         parts.append(f"Apply for the job at this link: {job_url}")
-    if search:
+    if search and web_search:
+        where = f" in {location}" if location else ""
+        parts.append(f"Find suitable jobs for me on real job sites ({', '.join(sites or ['linkedin', 'indeed'])}) with "
+                     f"web_search_jobs, matching: '{search}'{where}. Read the promising ones with read_job_url and apply to "
+                     f"at most {k} that genuinely fit my profile.")
+    elif search:
         parts.append(f"Find suitable jobs for me matching: '{search}'. Apply to at most {k} that genuinely fit my profile.")
     parts.append("Channel: " + CHANNEL_TEXT.get(channel, channel))
     if extra:
@@ -88,15 +97,23 @@ def main():
     ap.add_argument("--job", action="append", default=[])
     ap.add_argument("--url")
     ap.add_argument("--search")
-    ap.add_argument("--channel", choices=["api", "email", "form"], default="api")
+    ap.add_argument("--channel", choices=["api", "email", "form", "browser"], default="api")
+    ap.add_argument("--web", action="store_true", help="with --search: search real job sites with browser-use")
+    ap.add_argument("--location", default="")
     ap.add_argument("--notes", default="")
     a = ap.parse_args()
     s = get_settings()
+    if a.channel == "browser" or a.web:
+        s.browser_use = True
     if s.model_problem():
         raise SystemExit(s.model_problem())
     prof = load_profile(a.profile)
     allowed = set(a.job) if a.job else None
-    run = build_run(prof, build_goal(a.job, a.url, a.search, a.channel, a.notes), s, allowed_job_ids=allowed)
+    if a.url and not a.search:
+        m = re.search(r"/(?:jobs|apply)/(J-\d{4})", a.url)
+        allowed = (allowed or set()) | {m.group(1) if (m and a.url.startswith(s.sandbox_url)) else url_job_id(a.url)}
+    run = build_run(prof, build_goal(a.job, a.url, a.search, a.channel, a.notes, web_search=a.web, location=a.location),
+                    s, allowed_job_ids=allowed)
     while True:
         st = run.run_until_pause()
         if st == "awaiting_approval":
@@ -110,6 +127,7 @@ def main():
         else:
             break
     print(json.dumps(run.summary(), indent=2, default=str))
+    tracing.flush()
 
 
 if __name__ == "__main__":

@@ -2,8 +2,9 @@
 
     python install.py
 
-Installs the Python packages, the Chromium browser used by form-fill mode,
-and creates .env from .env.example if it does not exist yet.
+Installs the Python packages (incl. browser-use and langsmith), the Chromium browser used by form-fill mode,
+and creates .env from .env.example if it does not exist yet. The browser-use channel uses your installed
+Google Chrome (or Chromium / Edge); set BROWSER_EXECUTABLE in .env if it is not found.
 """
 import shutil
 import subprocess
@@ -20,8 +21,8 @@ def step(title: str, cmd: list[str]) -> None:
 
 
 def main() -> None:
-    if sys.version_info < (3, 10):
-        sys.exit("Python 3.10 or newer is needed.")
+    if sys.version_info < (3, 11):
+        sys.exit("Python 3.11 or newer is needed (browser-use needs it).")
     step("Installing Python packages", [sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
     step("Installing the browser for form-fill mode", [sys.executable, "-m", "playwright", "install", "chromium"])
     env = ROOT / ".env"
@@ -30,7 +31,9 @@ def main() -> None:
     else:
         shutil.copy(ROOT / ".env.example", env)
         print("\n== Created .env from .env.example")
-    print("\nDone. Next: open .env and set your model (ANTHROPIC_API_KEY, or a free provider), then run:  python run.py")
+    print("\nDone. Next: open .env and set your model (ANTHROPIC_API_KEY, or a free provider).\n"
+          "Optional: BROWSER_USE=on for real job sites, LANGSMITH_TRACING=true + LANGSMITH_API_KEY for tracing.\n"
+          "Then run:  python run.py")
 
 
 if __name__ == "__main__":

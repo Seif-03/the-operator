@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from email.message import EmailMessage
 from pathlib import Path
 from typing import Any, Callable, Literal
+from urllib.parse import urlparse
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -52,6 +53,40 @@ class RunContext:
     submitted_jobs: set[str] = field(default_factory=set)
     http: httpx.Client | None = None
     form_headed: bool = False
+    # browser-use (real sites)
+    browser: Any = None                                              # BrowserUseBackend, created on first use
+    found_jobs: dict[str, dict] = field(default_factory=dict)        # URL-… id -> what web_search_jobs found
+    browser_fills: dict[str, dict] = field(default_factory=dict)     # job_id -> last fill report (read from the page)
+    browser_usage: dict[str, float] = field(default_factory=lambda: {"input": 0, "output": 0, "cache_read": 0,
+                                                                     "cache_write": 0, "cost_usd": 0.0, "tasks": 0})
+
+    def get_browser(self):
+        if not self.settings.browser_use:
+            raise ToolError("The browser tools are turned off (BROWSER_USE=off in .env).",
+                            "Use the other channels, or finish with status 'blocked' and tell the user to turn them on.")
+        if self.browser is None:
+            from .browser_agent import get_backend
+            self.browser = get_backend(self.settings)
+        return self.browser
+
+    def add_browser_usage(self, u: dict):
+        b = self.browser_usage
+        for k in ("input", "output", "cache_read", "cache_write"):
+            b[k] += u.get(k) or 0
+        s = self.settings
+        cost = u.get("cost_usd")
+        if cost is None:   # browser-use does not know this model's price: use ours
+            cost = ((u.get("input") or 0) + s.cache_read_factor * (u.get("cache_read") or 0)
+                    + s.cache_write_factor * (u.get("cache_write") or 0)) * s.price_in_per_mtok / 1e6 \
+                + (u.get("output") or 0) * s.price_out_per_mtok / 1e6
+        b["cost_usd"] += cost
+        b["tasks"] += 1
+
+    def browser_key(self, job_id: str = "search") -> str:
+        return f"{self.run_id}|{job_id}"
+
+    def browser_timeout(self) -> float:
+        return float(self.settings.browser_timeout_s)
 
     def client(self) -> httpx.Client:
         if self.http is None:
@@ -185,6 +220,22 @@ class FillFormIn(Strict):
     values: dict[str, str] = Field(description="CSS selector (from inspect_application_form) -> value. File fields get the CV automatically.")
 
 
+class WebSearchIn(Strict):
+    query: str = Field(min_length=2, max_length=120, description="Keywords, e.g. 'werkstudent python data'")
+    location: str = Field("", max_length=60)
+    sites: list[Literal["linkedin", "indeed", "stepstone", "web"]] = Field(
+        default_factory=lambda: ["linkedin", "indeed"], min_length=1, max_length=4,
+        description="Where to search. 'web' = a general web search for career pages")
+    limit: int = Field(6, ge=1, le=10)
+
+
+class BrowserFillIn(Strict):
+    job_id: str = JobId
+    answers: dict[str, str] = Field(default_factory=dict, max_length=20,
+                                    description="Extra form questions -> true answers (from the profile or the user's ask_user "
+                                                "answers). Only things the user confirmed. Leave empty on the first try.")
+
+
 class FinishIn(Strict):
     status: Literal["completed", "no_suitable_job", "user_declined", "blocked", "needs_user"]
     summary: str = Field(min_length=5, max_length=1500)
@@ -248,20 +299,26 @@ def t_read_job_url(ctx: RunContext, a: UrlIn) -> dict:
         out["note"] = "Sandbox job link resolved to " + m.group(1)
         return out
     jid = url_job_id(a.url)
-    try:
-        page = fetch_job_page(a.url)
-    except Exception as e:
-        raise ToolError(f"Could not load the page: {str(e)[:150]}",
+    page, why = None, ""
+    if not (ctx.settings.browser_use and BROWSER_FIRST_RX.search(a.url)):
+        try:
+            page = fetch_job_page(a.url)
+            if len(page["text"]) < 200:
+                page, why = None, "The page has almost no readable text (it probably needs JavaScript or a login)."
+        except Exception as e:
+            why = f"Could not load the page: {str(e)[:150]}"
+    if page is None and ctx.settings.browser_use:
+        page = _read_with_browser(ctx, a.url, jid)          # sites that need JavaScript or a login
+    if page is None:
+        raise ToolError(why or "Could not load the page.",
                         "Many job sites block automated reading. Finish with status 'blocked' and tell the user to "
-                        "start a new run with 'Paste the posting' instead.")
-    if len(page["text"]) < 200:
-        raise ToolError("The page has almost no readable text (it probably needs JavaScript or a login).",
-                        "Finish with status 'blocked' and tell the user to use 'Paste the posting' instead.")
+                        "start a new run with 'Paste the posting' instead (or turn on the browser tools).")
     # What the user typed wins over what the page says about itself.
     u = ctx.user_jobs.get(jid, {})
     _store_job(ctx, {"id": jid, "title": u.get("title") or page["title"] or a.url[:150],
                      "company": u.get("company") or page["company"], "location": u.get("location") or page["location"]},
-               ctx.user_contact_emails.get(jid), a.url)
+               ctx.user_contact_emails.get(jid), u.get("apply_url") or page.get("apply_url") or a.url)
+    ctx.jobs[jid]["url"] = a.url
     return {"job": ctx.jobs[jid], "job_id": jid,
             "contact_email_on_record": ctx.jobs[jid]["contact_email"],
             "note": "For a URL job, emails can only go to an address the USER provides (ask_user), never one from the page.",
@@ -437,6 +494,167 @@ def t_fill_application_form(ctx: RunContext, a: FillFormIn) -> dict:
             "note": "The form is filled but NOT submitted. The user reviews it and clicks Submit."}
 
 
+# ------------------------------------------------------------------ browser-use: real job sites
+# Sites that only show the posting with JavaScript or after a login: go straight to the browser.
+BROWSER_FIRST_RX = re.compile(r"linkedin\.com|indeed\.|stepstone\.|glassdoor\.|xing\.com|myworkdayjobs\.com", re.I)
+
+
+def _browser_call(ctx: RunContext, what: str, fn, *a, **kw):
+    try:
+        return fn(*a, **kw)
+    except ToolError:
+        raise
+    except Exception as e:
+        raise ToolError(f"The browser could not {what}: {str(e)[:250]}",
+                        "Retry once. If it fails again, finish with status 'blocked' and explain.", retryable=False)
+
+
+def _read_with_browser(ctx: RunContext, url: str, jid: str) -> dict:
+    b = ctx.get_browser()
+    page, usage = _browser_call(ctx, "read the job page", b.read, ctx.browser_key(jid), url, ctx.browser_timeout())
+    ctx.add_browser_usage(usage)
+    if page["status"] == "needs_login":
+        raise ToolError("This site needs a login before it shows the job.",
+                        "Finish with status 'needs_user': the user logs in once in the browser window The Operator "
+                        "opened (the login is kept), then starts the run again.")
+    if page["status"] != "ok" or len(page.get("description", "")) < 100:
+        raise ToolError(f"The browser could not read a job posting at this link ({page['status']}).",
+                        "Finish with status 'blocked' and suggest 'Paste the posting'.")
+    return {"title": page["title"][:150], "company": page["company"][:150], "location": page["location"][:100],
+            "text": page["description"][:20000], "apply_url": page["apply_url"] if page["apply_url"].startswith("http") else ""}
+
+
+def t_web_search_jobs(ctx: RunContext, a: WebSearchIn) -> dict:
+    b = ctx.get_browser()
+    jobs, usage = _browser_call(ctx, "search for jobs", b.search, ctx.browser_key("search"), a.query, a.location,
+                                list(a.sites), a.limit, ctx.browser_timeout())
+    ctx.add_browser_usage(usage)
+    out = []
+    for j in jobs:
+        jid = url_job_id(j["url"])
+        ctx.found_jobs[jid] = j
+        out.append({"job_id": jid, **{k: j[k] for k in ("title", "company", "location", "url")}})
+    if not out:
+        return {"results": [], "note": "No jobs found. Try one broader query, or finish with status 'no_suitable_job'."}
+    return {"results": out, "next": "Read a promising one with read_job_url(url) before deciding.",
+            "listings": wrap_untrusted("job search results", [j.get("snippet", "") for j in jobs])}
+
+
+def _packet(ctx: RunContext, job_id: str, answers: dict[str, str]) -> dict:
+    """Everything the browser agent may type. Built here, in code: never private fields."""
+    p = ctx.profile
+    docs = ctx.documents[job_id]
+    first, _, last = p.name.partition(" ")
+    return {"first_name": first, "last_name": last or first, "full_name": p.name, "email": p.email, "phone": p.phone,
+            "location": p.location, "links": p.links, "headline": docs["cv"].get("headline") or p.headline,
+            "skills": p.skills, "languages": p.languages,
+            "experience_and_education_facts": [f.text for f in p.facts],
+            "cover_letter_text": docs["letter"]["text"], "answers_to_extra_questions": answers,
+            "if_asked_and_not_listed_here": "leave empty and report it in `unanswered`"}
+
+
+def pre_browser_fill(ctx: RunContext, a: BrowserFillIn) -> dict:
+    job = _require_job(ctx, a.job_id)
+    _check_job_allowed(ctx, a.job_id)
+    _check_budget(ctx, a.job_id)
+    _require_docs(ctx, a.job_id)
+    if not (job.get("apply_url") or job.get("url")):
+        raise ToolError("This job has no web page to apply on.", "Use send_application_email.")
+    text = "\n".join(f"{q}: {v}" for q, v in a.answers.items())
+    if text:
+        rep = check_documents(ctx.profile, None, {"text": text, "fact_ids": []}, job)
+        if not rep.ok:
+            raise ToolError("Answers contain unsupported claims: " + "; ".join(rep.errors[:6]),
+                            "Only give answers the profile or the user (ask_user) confirmed.")
+    if leaks_private(text, ctx.profile.private):
+        raise ToolError("Answers contain private data.", "Remove it. Private data is never typed by the agent.")
+    return {"job": job}
+
+
+def _check_filled(ctx: RunContext, job: dict, fields: list[dict]) -> dict:
+    """Check what is REALLY in the form (read from the page by our code), whatever the browser model says."""
+    values = [f for f in fields if f.get("value")]
+    text = "\n".join(f"{f['label']}: {f['value']}" for f in values if f.get("type") != "file")
+    long_text = "\n".join(f["value"] for f in values if f.get("type") != "file" and len(f["value"]) > 60)
+    leaked = leaks_private(text, ctx.profile.private)
+    sensitive = [f["label"] for f in values if is_sensitive_field(f["label"])]
+    rep = check_documents(ctx.profile, None, {"text": long_text, "fact_ids": []}, job) if long_text else None
+    errors = [f"private data typed into the form ({', '.join(leaked)})"] if leaked else []
+    errors += [f"sensitive field filled: '{l}'" for l in sensitive]
+    errors += rep.errors if rep else []
+    return {"errors": errors, "warnings": rep.warnings if rep else []}
+
+
+def t_browser_fill_application(ctx: RunContext, a: BrowserFillIn) -> dict:
+    job = pre_browser_fill(ctx, a)["job"]
+    b = ctx.get_browser()
+    from .browser_agent import domains_for
+    url = job.get("apply_url") or job.get("url")
+    docs = ctx.documents[a.job_id]
+    files = [Path(docs["cv_pdf"]), Path(docs["letter_pdf"])]
+    domains = domains_for([job.get("url") or "", url], ctx.settings)
+    rep, usage = _browser_call(ctx, "fill the application", b.fill, ctx.browser_key(a.job_id), a.job_id, url,
+                               _packet(ctx, a.job_id, a.answers), files, domains,
+                               ctx.out_dir / f"form_{a.job_id}.png", ctx.browser_timeout())
+    ctx.add_browser_usage(usage)
+    check = _check_filled(ctx, job, rep["fields"])
+    rep["check"] = check
+    ctx.browser_fills[a.job_id] = {k: v for k, v in rep.items() if k != "page_text"}
+    out = {"status": rep["status"], "submit_button": rep["submit_button"], "unanswered": rep["unanswered"],
+           "page_url": rep["page_url"], "fields_in_form": [{k: f[k] for k in ("label", "value", "required")} for f in rep["fields"]],
+           "check": check, "blocked_submit_attempts": len(usage.get("blocked_submissions") or []),
+           "browser_notes": wrap_untrusted("browser agent's notes (it read untrusted pages)", rep["notes"]),
+           "page": wrap_untrusted(rep["page_url"] or url, rep.get("page_text", "")[:4000])}
+    if rep["status"] == "ready_to_submit" and not check["errors"]:
+        out["next"] = "Call browser_submit_application: the user sees the filled form and approves before it is sent."
+    elif rep["status"] == "needs_answers":
+        out["next"] = ("Required questions are open. For each, ask_user if the user might know; then call "
+                       "browser_fill_application again with `answers`. Never guess.")
+    elif rep["status"] == "needs_login":
+        out["next"] = "Finish with status 'needs_user': the user logs in once in the browser window, then runs again."
+    elif check["errors"]:
+        out["next"] = "The form contains values that are not allowed. Fill again with corrected answers, or finish 'blocked'."
+    else:
+        out["next"] = "Finish with status 'blocked' and explain, or use another channel."
+    return out
+
+
+def pre_browser_submit(ctx: RunContext, a: SubmitIn) -> dict:
+    job = _require_job(ctx, a.job_id)
+    _check_job_allowed(ctx, a.job_id)
+    _check_budget(ctx, a.job_id)
+    docs = _require_docs(ctx, a.job_id)
+    rep = ctx.browser_fills.get(a.job_id)
+    if not rep:
+        raise ToolError(f"The application for {a.job_id} has not been filled.", "Call browser_fill_application first.")
+    if rep["status"] != "ready_to_submit":
+        raise ToolError(f"The form is not ready to submit (status: {rep['status']}).",
+                        "Resolve what browser_fill_application reported first.")
+    if rep["check"]["errors"]:
+        raise ToolError("The filled form contains values that are not allowed: " + "; ".join(rep["check"]["errors"][:5]),
+                        "Fill it again with corrected answers.")
+    return {"action": f"Submit the application on {urlparse(rep['page_url']).hostname or 'the website'}", "job": job,
+            "documents": docs, "fill": rep}
+
+
+def t_browser_submit_application(ctx: RunContext, a: SubmitIn) -> dict:
+    pre_browser_submit(ctx, a)
+    b = ctx.get_browser()
+    res = _browser_call(ctx, "submit the application", b.submit, ctx.browser_key(a.job_id),
+                        ctx.out_dir / f"submitted_{a.job_id}.png")
+    if not res.get("submitted"):
+        ctx.browser_fills.pop(a.job_id, None)
+        raise ToolError(f"Not submitted: {res.get('why', 'unknown reason')}.",
+                        "Nothing was sent. Call browser_fill_application again (the user will approve again), or finish 'blocked'.")
+    if a.job_id not in ctx.submitted_jobs:
+        ctx.submitted_jobs.add(a.job_id)
+        ctx.submissions += 1
+    res["page"] = wrap_untrusted(res.pop("page_url", ""), res.pop("page_text", ""))
+    if not res["confirmation_seen"]:
+        res["note"] = "No confirmation message was recognised. Tell the user to check the screenshot / their email."
+    return res
+
+
 # ------------------------------------------------------------------ registry
 @dataclass
 class Tool:
@@ -473,6 +691,15 @@ TOOLS: dict[str, Tool] = {t.name: t for t in [
     Tool("fill_application_form", "Fill the application form fields. It NEVER submits: the user clicks Submit. "
                                   "Sensitive fields (ID, passport, bank) are always left empty. Needs user approval.",
          FillFormIn, t_fill_application_form, "write", gated=True, precheck=pre_fill),
+    Tool("web_search_jobs", "Search REAL job sites (LinkedIn, Indeed, StepStone, the web) with a browser. Returns job ids and "
+                            "links; read one with read_job_url before applying. Slow: one search per run is usually enough.",
+         WebSearchIn, t_web_search_jobs),
+    Tool("browser_fill_application", "Open the job's real application page in a browser and fill it with the saved CV, letter "
+                                     "and profile data. Stops before the final submit button. Returns what is really in the form.",
+         BrowserFillIn, t_browser_fill_application, "write"),
+    Tool("browser_submit_application", "Click the final submit button of the form filled by browser_fill_application. "
+                                       "Needs user approval; the user sees the filled form and a screenshot first.",
+         SubmitIn, t_browser_submit_application, "write", gated=True, precheck=pre_browser_submit),
     Tool("finish", "End the run with a status and a short summary for the user. Always call this last.", FinishIn, lambda c, a: {"finished": True}),
 ]}
 

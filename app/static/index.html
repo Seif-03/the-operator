@@ -384,6 +384,16 @@ dialog h2{margin:0 0 6px;font-size:19px}
       <div id="t-search" class="hidden">
         <div class="row"><div><label class="f" for="search">What are you looking for?</label><input id="search" placeholder="python data werkstudent"></div>
           <div><label class="f" for="maxApps">Apply to at most</label><select id="maxApps"><option value="1">1 job</option><option value="2">2 jobs</option><option value="3">3 jobs</option></select></div></div>
+        <div id="webBox" class="hidden">
+          <label class="small" style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" id="webSearch" style="width:auto"> Search <b>real job sites</b> with the browser (browser-use)</label>
+          <div id="webOpts" class="hidden"><div class="row"><div><label class="f" for="webLocation">Location</label><input id="webLocation" placeholder="Berlin, remote…"></div>
+            <div><label class="f">Sites</label><div class="small" id="webSites" style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px">
+              <label><input type="checkbox" value="linkedin" checked style="width:auto"> LinkedIn</label>
+              <label><input type="checkbox" value="indeed" checked style="width:auto"> Indeed</label>
+              <label><input type="checkbox" value="stepstone" style="width:auto"> StepStone</label>
+              <label><input type="checkbox" value="web" style="width:auto"> Company sites (web search)</label></div></div></div>
+            <div class="hint">LinkedIn and Indeed may ask you to log in: do it once in the browser window The Operator opens; the login is kept.</div></div>
+        </div>
       </div>
       <div id="t-details" class="hidden">
         <div class="row"><div><label class="f" for="jobTitle">Job title</label><input id="jobTitle" placeholder="Working Student Data Engineering"></div>
@@ -399,12 +409,14 @@ dialog h2{margin:0 0 6px;font-size:19px}
         <button class="choice on" data-c="api"><span class="ic"><svg class="i"><use href="#i-grid"/></svg></span><b>Submit on the job board</b><span>You approve, the agent submits. Test board only.</span></button>
         <button class="choice" data-c="email"><span class="ic"><svg class="i"><use href="#i-mail"/></svg></span><b>Send by email</b><span>CV + letter PDFs, to the company's address on record</span></button>
         <button class="choice" data-c="form"><span class="ic"><svg class="i"><use href="#i-form"/></svg></span><b>Fill the online form</b><span>The agent fills it in. <b>You</b> click Submit.</span></button>
+        <button class="choice" data-c="browser"><span class="ic"><svg class="i"><use href="#i-external"/></svg></span><b>Apply on the website</b><span>browser-use fills the real application. You approve, then it submits.</span></button>
       </div>
+      <div id="browserOff" class="hint hidden">“Apply on the website” needs the browser tools: set <code>BROWSER_USE=on</code> in .env and restart.</div>
       <div id="emailBox" class="hidden"><label class="f" for="contactEmail">Email address to apply to</label><input id="contactEmail" type="email" placeholder="jobs@company.com">
         <div class="hint">For your own postings, you give the address. The agent never takes one from the posting text, because that's a classic attack.</div></div>
       <div id="formBox" class="hidden">
         <div id="applyUrlBox"><label class="f" for="applyUrl">Link to the application form</label><input id="applyUrl" type="url" placeholder="https://…"></div>
-        <label class="small" style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" id="showBrowser" style="width:auto"> Show me the browser while it fills the form</label></div>
+        <label class="small" id="showBrowserBox" style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" id="showBrowser" style="width:auto"> Show me the browser while it fills the form</label></div>
     </div></div>
 
     <div class="step"><div class="step-n">3</div><div class="step-body">
@@ -764,7 +776,8 @@ function renderJobs() {
 $("#jobFilter").oninput = renderJobs;
 $$("#targets .choice").forEach(b => b.onclick = () => { TARGET = b.dataset.t; updateApply(); });
 $$("#channels .choice").forEach(b => b.onclick = () => { CHANNEL = b.dataset.c; updateApply(); });
-["#jobText", "#jobUrl", "#search", "#contactEmail", "#applyUrl", "#maxApps", "#jobTitle", "#jobCompany"].forEach(s => $(s).addEventListener("input", updateApply));
+["#jobText", "#jobUrl", "#search", "#contactEmail", "#applyUrl", "#maxApps", "#jobTitle", "#jobCompany", "#webSearch"].forEach(s => $(s).addEventListener("input", updateApply));
+$("#webSearch").addEventListener("change", updateApply); $$("#webSites input").forEach(x => x.addEventListener("change", updateApply));
 
 function applyProblem() {
   if (!PROFILE) return "Create a profile first.";
@@ -775,9 +788,13 @@ function applyProblem() {
   if (TARGET === "search" && $("#search").value.trim().length < 2) return "Type what kind of job to look for.";
   if (CHANNEL === "api" && (TARGET === "paste" || TARGET === "url")) return "Job board submission only works for test-board jobs. Choose email or form.";
   if (CHANNEL === "email" && (TARGET === "paste" || TARGET === "url") && !/^\S+@\S+\.\S+$/.test($("#contactEmail").value.trim())) return "Enter the email address to apply to.";
-  if (CHANNEL === "form" && TARGET === "paste" && !/^https?:\/\//.test($("#applyUrl").value.trim())) return "Enter the link to the application form.";
+  if ((CHANNEL === "form" || CHANNEL === "browser") && TARGET === "paste" && !/^https?:\/\//.test($("#applyUrl").value.trim())) return "Enter the link to the application form.";
+  if ((CHANNEL === "browser" || webOn()) && !CFG.browser_use) return "The browser tools are off: set BROWSER_USE=on in .env and restart.";
+  if (webOn() && !webSites().length) return "Pick at least one site to search.";
   return "";
 }
+function webOn() { return TARGET === "search" && $("#webSearch").checked; }
+function webSites() { return $$("#webSites input:checked").map(x => x.value); }
 function updateApply() {
   $$("#targets .choice").forEach(b => b.classList.toggle("on", b.dataset.t === TARGET));
   $$("#channels .choice").forEach(b => b.classList.toggle("on", b.dataset.c === CHANNEL));
@@ -786,13 +803,16 @@ function updateApply() {
   $("#t-details").classList.toggle("hidden", !own);
   $("#detailsHint").textContent = TARGET === "url" ? "Optional: read from the page if empty. These appear on your cover letter." : "Recommended: these appear on your cover letter.";
   $("#emailBox").classList.toggle("hidden", !(CHANNEL === "email" && own));
-  $("#formBox").classList.toggle("hidden", CHANNEL !== "form"); $("#applyUrlBox").classList.toggle("hidden", TARGET !== "paste");
-  const noBoard = own || CFG.mode === "real";
+  $("#formBox").classList.toggle("hidden", !(CHANNEL === "form" || (CHANNEL === "browser" && TARGET === "paste"))); $("#applyUrlBox").classList.toggle("hidden", TARGET !== "paste");
+  $("#showBrowserBox").classList.toggle("hidden", CHANNEL !== "form");
+  $("#webBox").classList.toggle("hidden", !CFG.browser_use); $("#webOpts").classList.toggle("hidden", !webOn());
+  $("#browserOff").classList.toggle("hidden", !!CFG.browser_use || CHANNEL !== "browser");
+  const noBoard = own || CFG.mode === "real" || webOn();
   $('#channels [data-c="api"]').disabled = noBoard; if (noBoard && CHANNEL === "api") { CHANNEL = "email"; return updateApply(); }
   const what = TARGET === "board" ? (PICKED.size ? `<b>${PICKED.size} job${PICKED.size > 1 ? "s" : ""}</b> (${[...PICKED].join(", ")})` : "")
     : TARGET === "paste" ? `<b>${esc($("#jobTitle").value.trim() || "your pasted posting")}</b>` : TARGET === "url" ? "<b>the job at your link</b>"
-    : `the best <b>${$("#maxApps").value}</b> match${+$("#maxApps").value > 1 ? "es" : ""} for “${esc($("#search").value.trim())}”`;
-  const how = {api: "submit on the board", email: "send by email", form: "fill the form (you submit)"}[CHANNEL];
+    : `the best <b>${$("#maxApps").value}</b> match${+$("#maxApps").value > 1 ? "es" : ""} for “${esc($("#search").value.trim())}”${webOn() ? " on real job sites" : ""}`;
+  const how = {api: "submit on the board", email: "send by email", form: "fill the form (you submit)", browser: "apply on the website (after your OK)"}[CHANNEL];
   const prob = applyProblem();
   $("#sumText").innerHTML = prob ? esc(prob) : `Apply to ${what} as <b>${esc(PROFILE.name)}</b> · ${how}`;
   $("#startBtn").disabled = !!prob;
@@ -803,7 +823,8 @@ $("#startBtn").onclick = async () => {
     job_ids: TARGET === "board" ? [...PICKED] : [], job_url: TARGET === "url" ? $("#jobUrl").value.trim() : "",
     job_text: TARGET === "paste" ? $("#jobText").value : "", apply_url: TARGET === "paste" ? $("#applyUrl").value.trim() : "",
     job_title: own ? $("#jobTitle").value.trim() : "", job_company: own ? $("#jobCompany").value.trim() : "", job_location: own ? $("#jobLocation").value.trim() : "",
-    contact_email: own ? $("#contactEmail").value.trim() : "", search: TARGET === "search" ? $("#search").value.trim() : "", max_submissions: +$("#maxApps").value || 1 };
+    contact_email: own ? $("#contactEmail").value.trim() : "", search: TARGET === "search" ? $("#search").value.trim() : "", max_submissions: +$("#maxApps").value || 1,
+    web_search: webOn(), location: webOn() ? $("#webLocation").value.trim() : "", sites: webOn() ? webSites() : ["linkedin", "indeed"] };
   const b = $("#startBtn"); b.disabled = true; b.innerHTML = `<span class="spin"></span>Starting…`;
   try { const r = await api("/api/runs", json("POST", body)); CUR_RUN = r.run_id; store.set("run", CUR_RUN); RUN = null; GATE_KEY = null;
     PICKED.clear(); renderJobs(); show("runs"); toast("Started. Follow along here.", "ok"); }
@@ -941,13 +962,19 @@ function renderGate(r) {
   }
 
   const job = v.job || {}, g = v.grounding || {errors: [], warnings: []}, inj = injectionHits(r);
-  const verb = {submit_application: "Submit", send_application_email: "Send email", fill_application_form: "Fill the form"}[p.tool] || "Approve";
-  const tabs = [["letter", "Cover letter"], ["cv", "CV"]]; if (v.subject) tabs.unshift(["email", "Email"]); if (v.values) tabs.unshift(["form", "Form answers"]);
+  const verb = {submit_application: "Submit", send_application_email: "Send email", fill_application_form: "Fill the form", browser_submit_application: "Submit on the website"}[p.tool] || "Approve";
+  const host = v.page_url ? (() => { try { return new URL(v.page_url).hostname; } catch { return v.page_url; } })() : "";
+  const tabs = [["letter", "Cover letter"], ["cv", "CV"]]; if (v.subject) tabs.unshift(["email", "Email"]); if (v.values) tabs.unshift(["form", v.browser ? "Filled form" : "Form answers"]); if (v.browser) tabs.unshift(["shot", "Screenshot"]);
   $("#gate").innerHTML = `<div class="card gate">
     <span class="kicker">${icon("alert")} Your approval is needed</span>
     <h2>${esc(v.action || verb)}</h2>
     <div class="facts-line"><span>Job: <b>${esc(job.title || job.id)}</b></span>${job.company ? `<span>Company: <b>${esc(job.company)}</b></span>` : ""}
-      ${v.to ? `<span>To: <b>${esc(v.to)}</b> <span class="muted small">(address on record, not from the posting)</span></span>` : ""}</div>
+      ${v.to ? `<span>To: <b>${esc(v.to)}</b> <span class="muted small">(address on record, not from the posting)</span></span>` : ""}
+      ${v.browser ? `<span>Website: <b>${esc(host)}</b></span>` : ""}</div>
+    ${v.browser ? `<div class="alert info">${icon("external")}<div class="alert-body"><b>The form below is filled on the real website and waits for you</b>
+      If you approve, The Operator clicks <b style="display:inline">“${esc(v.submit_button)}”</b> on <span class="mono">${esc(v.page_url)}</span>. Before clicking it checks that nothing in the form changed. Nothing is sent until then: submissions are blocked in the browser.</div></div>
+      ${(v.form_check?.errors || []).length ? `<div class="alert bad">${icon("alert")}<div class="alert-body"><b>Problems in the form</b><ul>${v.form_check.errors.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div></div>` : ""}
+      ${(v.empty_required || []).length || (v.unanswered || []).length ? `<div class="alert warn">${icon("alert")}<div class="alert-body"><b>Left empty</b><ul>${[...new Set([...(v.empty_required || []), ...(v.unanswered || [])])].map(x => `<li>${esc(x)}</li>`).join("")}</ul></div></div>` : ""}` : ""}
     ${inj.length ? `<div class="alert warn">${icon("shield")}<div class="alert-body"><b>Attack spotted and neutralised</b>This posting contains text aimed at the AI. It was handled as plain data, never as instructions:<ul>${inj.map(i => `<li><i>“…${esc(i.hits[0].replace(/^\S*\s+/, ""))}…”</i></li>`).join("")}</ul></div></div>` : ""}
     ${g.errors?.length ? `<div class="alert bad">${icon("alert")}<div class="alert-body"><b>Claims your profile doesn't support</b><ul>${g.errors.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div></div>`
       : `<div class="alert ok">${icon("check")}<div class="alert-body"><b>Fact check passed</b>Every claim traces back to your profile. The small grey codes in the CV show which fact.</div></div>`}
@@ -956,9 +983,10 @@ function renderGate(r) {
     <div class="dpanel" data-k="email" ${tabs[0][0] === "email" ? "" : "hidden"}>${v.subject ? `<label class="f" for="g_subject">Subject</label><input id="g_subject" value="${esc(v.subject)}">
       <label class="f" for="g_body">Message <span class="muted" style="font-weight:400">(CV and letter PDFs are attached)</span></label><textarea id="g_body" style="min-height:150px">${esc(v.body)}</textarea>` : ""}</div>
     <div class="dpanel" data-k="form" ${tabs[0][0] === "form" ? "" : "hidden"}>${v.values ? `<table class="kvt">${Object.entries(v.values).map(([k, x]) => `<tr><td>${esc(k)}</td><td>${esc(x)}</td></tr>`).join("")}</table>
-      ${v.left_for_user?.length ? `<p class="small muted">Left empty for you (sensitive): ${esc(v.left_for_user.join(", "))}</p>` : ""}<div class="alert info">${icon("form")}<div class="alert-body">The agent only fills in the fields. <b style="display:inline">You</b> review the page and click Submit yourself.</div></div>` : ""}</div>
-    <div class="dpanel" data-k="letter" ${tabs[0][0] === "letter" ? "" : "hidden"}><div class="small muted" style="margin-bottom:8px">You can edit the letter right here. <span class="edited hidden" id="editedTag">edited</span></div>
-      <textarea class="paper" id="g_letter">${esc(v.letter)}</textarea></div>
+      ${v.left_for_user?.length ? `<p class="small muted">Left empty for you (sensitive): ${esc(v.left_for_user.join(", "))}</p>` : ""}${v.browser ? `<p class="small muted">Read from the page itself, not from the AI's report.</p>` : `<div class="alert info">${icon("form")}<div class="alert-body">The agent only fills in the fields. <b style="display:inline">You</b> review the page and click Submit yourself.</div></div>`}` : ""}</div>
+    <div class="dpanel" data-k="shot" ${tabs[0][0] === "shot" ? "" : "hidden"}>${v.screenshot ? `<a target="_blank" href="/api/file?path=${encodeURIComponent(v.screenshot)}"><img alt="Screenshot of the filled application form" style="width:100%;border:1px solid var(--line);border-radius:10px" src="/api/file?path=${encodeURIComponent(v.screenshot)}"></a>` : `<p class="muted">No screenshot.</p>`}</div>
+    <div class="dpanel" data-k="letter" ${tabs[0][0] === "letter" ? "" : "hidden"}><div class="small muted" style="margin-bottom:8px">${v.browser ? "Already in the form: to change it, use “Ask for changes”." : "You can edit the letter right here."} <span class="edited hidden" id="editedTag">edited</span></div>
+      <textarea class="paper" id="g_letter" ${v.browser ? "readonly" : ""}>${esc(v.letter)}</textarea></div>
     <div class="dpanel" data-k="cv" hidden>${paperCV(v.cv, r.profile_name)}</div>
     <div class="docs">${v.cv_pdf ? `<a class="btn sm" target="_blank" href="/api/file?path=${encodeURIComponent(v.cv_pdf)}">${icon("file")}Open CV.pdf</a>` : ""}${v.letter_pdf ? `<a class="btn sm" target="_blank" href="/api/file?path=${encodeURIComponent(v.letter_pdf)}">${icon("file")}Open Letter.pdf</a>` : ""}</div>
     <div class="changes hidden" id="changeBox"><label class="f" for="g_reason" style="margin-top:0">What should it change?</label>
@@ -1014,6 +1042,7 @@ $("#sbReset").onclick = async () => { if (!confirm("Delete all test applications
   $("#modelChip").title = CFG.model_problem || `Model ready (${CFG.provider})`;
   $("#modelBanner").classList.toggle("hidden", !CFG.model_problem); $("#modelProblem").textContent = " " + (CFG.model_problem || "");
   $("#boardLink").href = CFG.sandbox_url;
+  $("#modelChip").title += CFG.langsmith ? ` · traced to LangSmith project “${CFG.langsmith_project}”` : " · LangSmith tracing off";
   await loadProfiles();
   show(store.get("view", "profile"));
   if (VIEW !== "runs") loadRuns(false);
