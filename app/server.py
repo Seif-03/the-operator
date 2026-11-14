@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import threading
 from pathlib import Path
@@ -11,6 +12,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from pydantic import BaseModel, Field
 
+from agent import tracing
 from agent.config import ROOT, get_settings
 from agent.llm import LLMError, make_llm
 from agent.loop import AgentRun
@@ -44,6 +46,8 @@ def index():
 @app.get("/api/config")
 def config():
     return {"mode": S.mode, "model": S.model, "provider": S.provider, "model_problem": S.model_problem(), "sandbox_url": S.sandbox_url,
+            "browser_use": S.browser_use, "langsmith": tracing.enabled(),
+            "langsmith_project": os.environ.get("LANGSMITH_PROJECT", "") if tracing.enabled() else "",
             "limits": {"max_steps": S.max_steps, "max_cost_usd": S.max_cost_usd, "max_submissions": S.max_submissions}}
 
 
@@ -231,7 +235,10 @@ class RunIn(BaseModel):
     job_company: str = Field("", max_length=150)
     job_location: str = Field("", max_length=100)
     apply_url: str = Field("", max_length=500)
-    channel: str = Field("api", pattern="^(api|email|form)$")
+    channel: str = Field("api", pattern="^(api|email|form|browser)$")
+    web_search: bool = False                       # search real job sites with browser-use
+    location: str = Field("", max_length=80)
+    sites: list[str] = Field(default_factory=lambda: ["linkedin", "indeed"], max_length=4)
     notes: str = Field("", max_length=1000)
     contact_email: str = ""
     max_submissions: int = Field(1, ge=1, le=5)
@@ -261,7 +268,11 @@ def start_run(r: RunIn):
         raise HTTPException(400, "Give job ids, a job link, a pasted posting, or a search")
     if r.job_text.strip() and len(r.job_text.strip()) < 100:
         raise HTTPException(400, "The pasted posting is too short: paste the whole job description.")
-    if r.job_text.strip() and r.channel == "form" and not r.apply_url.strip():
+    if (r.channel == "browser" or r.web_search) and not S.browser_use:
+        raise HTTPException(400, "The browser tools are off. Set BROWSER_USE=on in .env and restart (see README).")
+    if any(x not in ("linkedin", "indeed", "stepstone", "web") for x in r.sites):
+        raise HTTPException(400, "sites: linkedin, indeed, stepstone or web")
+    if r.job_text.strip() and r.channel in ("form", "browser") and not r.apply_url.strip():
         raise HTTPException(400, "Form filling needs the link to the application form.")
     for u in (r.job_url, r.apply_url):
         if u and not u.strip().startswith(("http://", "https://")):
@@ -295,7 +306,7 @@ def start_run(r: RunIn):
         if jid.startswith("URL-"):
             user_jobs[jid] = typed
     goal = build_goal(r.job_ids, r.job_url.strip() or None, r.search or None, r.channel, r.notes, r.max_submissions,
-                      pasted_job_id=pasted_id)
+                      pasted_job_id=pasted_id, web_search=r.web_search, location=r.location.strip(), sites=r.sites)
     try:
         run = build_run(prof, goal, s, allowed_job_ids=allowed, contacts=contacts, form_headed=r.show_browser,
                         user_jobs=user_jobs)
@@ -357,9 +368,19 @@ def answer(run_id: str, a: AnswerIn):
 @app.get("/api/file")
 def get_file(path: str):
     p = Path(path).resolve()
-    if not p.is_relative_to(S.output_dir.resolve()) or p.suffix != ".pdf" or not p.exists():
+    types = {".pdf": "application/pdf", ".png": "image/png"}
+    if not p.is_relative_to(S.output_dir.resolve()) or p.suffix not in types or not p.exists():
         raise HTTPException(404)
-    return FileResponse(p, media_type="application/pdf")
+    return FileResponse(p, media_type=types[p.suffix])
+
+
+@app.on_event("shutdown")
+def _shutdown():
+    tracing.flush()
+    if S.browser_use:
+        from agent.browser_agent import _BACKEND
+        if _BACKEND is not None:
+            _BACKEND.shutdown()
 
 
 # ------------------------------------------------------------------ job picker (sandbox board)

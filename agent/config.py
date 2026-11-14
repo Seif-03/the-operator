@@ -54,11 +54,23 @@ class Settings:
     max_steps: int = int(os.environ.get("MAX_STEPS", 20))
     max_cost_usd: float = _f("MAX_COST_USD", 0.50)
     max_tokens_total: int = int(os.environ.get("MAX_TOKENS_TOTAL", 250_000))
-    max_wall_seconds: float = _f("MAX_WALL_SECONDS", 600)
+    max_wall_seconds: float = _f("MAX_WALL_SECONDS", 900)
     max_submissions: int = int(os.environ.get("MAX_SUBMISSIONS", 1))
     max_identical_calls: int = int(os.environ.get("MAX_IDENTICAL_CALLS", 3))
     tool_timeout_s: float = _f("TOOL_TIMEOUT_S", 2.0)
     tool_retries: int = int(os.environ.get("TOOL_RETRIES", 1))
+
+    # ---- browser-use (real job sites) ----
+    # Off by default so tests/eval stay offline. BROWSER_USE=on turns on the browser tools.
+    browser_use: bool = os.environ.get("BROWSER_USE", "off").strip().lower() in ("1", "on", "true", "yes")
+    browser_model: str = os.environ.get("BROWSER_MODEL", "")            # default: OPERATOR_MODEL
+    browser_headless: bool = os.environ.get("BROWSER_HEADLESS", "false").strip().lower() in ("1", "true", "yes")
+    browser_executable: str = os.environ.get("BROWSER_EXECUTABLE", "")  # default: Chrome / Chromium / Edge found on the machine
+    # A dedicated profile: log in to LinkedIn / Indeed once in the window The Operator opens, the login is kept.
+    browser_profile_dir: str = os.environ.get("BROWSER_PROFILE_DIR") or str(ROOT / "data" / "browser-profile")
+    browser_max_steps: int = int(os.environ.get("BROWSER_MAX_STEPS", 30))           # browser-use model requests per task
+    browser_timeout_s: float = _f("BROWSER_TIMEOUT_S", 300)
+    browser_any_domain: bool = os.environ.get("BROWSER_ANY_DOMAIN", "false").strip().lower() in ("1", "true", "yes")
 
     # ---- real-mode email (SMTP) ----
     smtp_host: str = os.environ.get("SMTP_HOST", "")

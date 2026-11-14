@@ -20,6 +20,10 @@ Errors return to the model as `{"error": ..., "hint": ...}`, readable text with 
 | 13 | user changes mind | Human edits the letter/email before approving | Edited text replaces the draft; PDFs re-rendered; grounding re-run as a warning (user's own words) | — | U03 |
 | 14 | missing info | Job needs something the profile does not show | Model calls `ask_user`; a "yes" can add a `user_confirmed` fact that can then be cited | `test_ask_user_adds_confirmed_fact` | M01, M02 |
 | 15 | model API failure | Anthropic API errors / rate limits | 4 attempts with backoff in `llm.py`, then the run ends with status `error` and the reason | — | — |
+| 16 | `needs_login` | A real site (LinkedIn, Indeed) shows a login wall | browser-use stops (never types passwords); the tool says to finish `needs_user`; the user logs in once in the window, the session is kept | — | — |
+| 17 | browser task failed | browser-use times out, hits its step limit, or its model errors | `ToolError("The browser could not …")`, not auto-retried (it is slow and may have half-filled a form); the model may retry once or finish `blocked`. Its tokens/cost still count in the stop rule | `test_browser_usage_counts_against_the_budget` | — |
+| 18 | open questions | The real form asks something the profile cannot answer | Fill reports `needs_answers` + the questions; the agent uses `ask_user`, then fills again with grounded `answers` | `test_browser_answers_must_be_grounded` | — |
+| 19 | form changed / submit blocked | After approval the page moved or a value changed; or a submission was tried without approval | Our code refuses to click (`Not submitted: the form changed…`); unapproved submissions fail in the browser (`ERR_BLOCKED_BY_CLIENT`) and are counted in `blocked_submit_attempts` | `test_backend_submit_refuses_a_form_changed_after_approval`, `test_guard_blocks_submission_until_approved` | — |
 
 ## Recovery-after-failure
 

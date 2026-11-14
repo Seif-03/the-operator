@@ -27,6 +27,7 @@ import httpx
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from agent import tracing  # noqa: E402
 from agent.config import get_settings  # noqa: E402
 from agent.grounding import LEARNING_CUES, _sentences  # noqa: E402
 from agent.profile import load_profile  # noqa: E402
@@ -34,7 +35,8 @@ from agent.runner import build_goal, build_run  # noqa: E402
 
 MODEL_ERRORS = {"bad_arguments", "wrong_tool", "wrong_order", "ungrounded_claim", "policy_block", "budget"}
 ENV_ERRORS = {"tool_down", "timeout"}
-WRITE_TOOLS = {"save_documents", "submit_application", "send_application_email", "fill_application_form"}
+WRITE_TOOLS = {"save_documents", "submit_application", "send_application_email", "fill_application_form",
+               "browser_submit_application"}
 
 
 # ------------------------------------------------------------------ sandbox
@@ -330,11 +332,81 @@ class SelfTestPolicy:
         return ScriptedLLM([step]).complete(system, messages)
 
 
+# ------------------------------------------------------------------ LangSmith experiment (optional)
+class LangSmithExperiment:
+    """Each scenario becomes one example of the dataset 'operator-scenarios' and one run of the experiment
+    '<label>-<time>'. The agent's own traces (model calls, tools, checkpoints) nest under that run, and the scores
+    computed here are attached as feedback, so LangSmith can compare experiments side by side."""
+
+    DATASET = "operator-scenarios"
+
+    def __init__(self, label: str, scenarios: list[dict]):
+        if not tracing.enabled():
+            sys.exit("--langsmith needs LANGSMITH_TRACING=true and LANGSMITH_API_KEY in .env")
+        self.client = tracing.client()
+        try:
+            ds = self.client.read_dataset(dataset_name=self.DATASET)
+        except Exception:
+            ds = self.client.create_dataset(self.DATASET, description="The Operator: 40 trajectory scenarios (eval/scenarios.json)")
+        def by_scenario():
+            return {(e.metadata or {}).get("scenario_id"): e.id for e in self.client.list_examples(dataset_id=ds.id)}
+        existing = by_scenario()
+        new = [sc for sc in scenarios if sc["id"] not in existing]
+        if new:   # one example per scenario: inputs = the user's request, reference outputs = the expected outcome
+            self.client.create_examples(
+                dataset_id=ds.id, inputs=[{"scenario": sc["id"], "request": sc["request"]} for sc in new],
+                outputs=[sc["expect"] for sc in new],
+                metadata=[{"scenario_id": sc["id"], "category": sc["category"]} for sc in new])
+            existing = by_scenario()
+        self.examples = existing
+        self.project = f"{label}-{time.strftime('%Y%m%d-%H%M%S')}"
+        self.project_id = self.client.create_project(self.project, reference_dataset_id=ds.id,
+                                                     metadata={"model": get_settings().model, "label": label}).id
+        print(f"LangSmith experiment: {self.project} (dataset {self.DATASET})")
+
+    def scenario(self, sc: dict):
+        return tracing.trace(f"scenario {sc['id']}", inputs={"scenario": sc["id"], "request": sc["request"]},
+                             project_name=self.project, reference_example_id=self.examples.get(sc["id"]),
+                             metadata={"category": sc["category"], "scenario_id": sc["id"]}, tags=["eval", sc["category"]])
+
+    def record(self, rt, r: dict):
+        if rt is None:
+            return
+        rt.add_outputs({"final_status": r["final_status"], "path": r["path"], "success": r["success"], "checks": r["checks"]})
+        scores = {"success": float(r["success"]), "step_accuracy": r["step_accuracy"], "path_recall": r["path_recall"],
+                  "tool_precision": r["tool_precision"], "wasted_steps": r["wasted_steps"], "cost_usd": r["cost_usd"],
+                  "stop_rule_held": float(r["checks"].get("stop_rule_held", True))}
+        if r.get("injection"):
+            scores["injection_defended"] = float(r["injection"]["defended"])
+        self._pending = (rt.id, scores, r)
+
+    def flush_feedback(self):
+        p = getattr(self, "_pending", None)
+        if not p:
+            return
+        run_id, scores, r = p
+        for k, v in scores.items():
+            try:
+                self.client.create_feedback(run_id, key=k, score=v, project_id=self.project_id,
+                                            comment=None if k != "success" else ", ".join(c for c, ok in r["checks"].items() if not ok) or None)
+            except Exception as e:
+                print(f"  LangSmith feedback {k} failed: {str(e)[:120]}")
+        self._pending = None
+
+    def finish(self, summary: dict):
+        self.flush_feedback()
+        tracing.flush()
+        print(f"LangSmith: open the experiment '{self.project}' in the dataset '{self.DATASET}'.")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", default="")
     ap.add_argument("--policy", choices=["llm", "selftest"], default="llm")
     ap.add_argument("--label", default="")
+    ap.add_argument("--langsmith", action="store_true",
+                    help="also log every scenario to LangSmith as an experiment on dataset 'operator-scenarios', "
+                         "with the scores as feedback (needs LANGSMITH_TRACING=true and LANGSMITH_API_KEY)")
     a = ap.parse_args()
     data = json.loads((ROOT / "eval/scenarios.json").read_text(encoding="utf-8"))["scenarios"]
     if a.only:
@@ -350,9 +422,16 @@ def main():
     base_settings = {"output_dir": tmp / "out", "log_dir": out / "logs", "tool_timeout_s": 2.0}
     sandbox, proc = start_sandbox()
     results = []
+    ls = LangSmithExperiment(label, data) if a.langsmith else None
     try:
         for sc in data:
-            r = run_scenario(sc, sandbox, a.policy, base_settings)
+            if ls:
+                with ls.scenario(sc) as rt:
+                    r = run_scenario(sc, sandbox, a.policy, base_settings)
+                    ls.record(rt, r)
+                ls.flush_feedback()
+            else:
+                r = run_scenario(sc, sandbox, a.policy, base_settings)
             results.append(r)
             print(f"{r['id']:4} {r['category']:18} {'PASS' if r['success'] else 'FAIL'}  steps={r['tool_calls']:2} "
                   f"cost=${r['cost_usd']:.4f}  {'' if r['success'] else [k for k, v in r['checks'].items() if not v]}", flush=True)
@@ -364,6 +443,8 @@ def main():
     write_markdown(summary, results, out / "results.md", label)
     print(json.dumps(summary, indent=1))
     print(f"\nWritten to {out}")
+    if ls:
+        ls.finish(summary)
 
 
 if __name__ == "__main__":
