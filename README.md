@@ -24,7 +24,7 @@ python install.py
 It installs the packages and the browser for form-fill mode, and creates `.env`. Then choose the model in `.env`:
 
 - **Claude (default, used for the eval):** set `ANTHROPIC_API_KEY`.
-- **Free:** set `OPERATOR_PROVIDER=openai` and an OpenAI-compatible server (Groq, OpenRouter, or a local Ollama); examples are in `.env.example`. Free models are weaker at multi-step tool use.
+- **Free:** set `OPERATOR_PROVIDER=openai` and an OpenAI-compatible server (Google Gemini, Groq, OpenRouter, or a local Ollama); examples are in `.env.example`. Free models are weaker at multi-step tool use, and often overloaded (`503 high demand`, `429`): set `OPERATOR_FALLBACK_MODELS` so the agent switches to another model instead of stopping.
 
 Optional, in the same `.env`:
 

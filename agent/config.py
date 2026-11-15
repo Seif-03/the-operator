@@ -42,6 +42,9 @@ class Settings:
     openai_api_key: str = os.environ.get("OPENAI_API_KEY", "")
     openai_base_url: str = os.environ.get("OPENAI_BASE_URL") or "http://localhost:11434/v1"   # empty in .env -> Ollama
     model: str = os.environ.get("OPERATOR_MODEL") or "claude-haiku-5-5"
+    # OpenAI-compatible providers only: models to try, in order, when OPERATOR_MODEL stays busy (503/429).
+    fallback_models: list = field(default_factory=lambda: [m.strip() for m in os.environ.get("OPERATOR_FALLBACK_MODELS", "").split(",") if m.strip()])
+    llm_tries: int = int(os.environ.get("LLM_TRIES", 4))   # tries per model on 429/5xx/timeouts, with backoff
     # USD per million tokens (Haiku 5.5 list price). Set these in .env when you change the model.
     price_in_per_mtok: float = _f("PRICE_IN_PER_MTOK", 0.10)
     price_out_per_mtok: float = _f("PRICE_OUT_PER_MTOK", 0.50)

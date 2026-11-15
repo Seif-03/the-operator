@@ -1,0 +1,38 @@
+{
+ "scenarios": 40,
+ "task_success_rate": 0.8,
+ "by_category": {
+  "bad_input": "1/1",
+  "budget": "1/1",
+  "empty_result": "1/1",
+  "happy": "9/10",
+  "idempotency": "1/1",
+  "injection": "10/10",
+  "missing_info": "1/2",
+  "poor_fit": "2/3",
+  "tool_failure": "5/7",
+  "user_changes_mind": "1/4"
+ },
+ "step_accuracy_mean": 0.975,
+ "path_recall_mean": 0.946,
+ "tool_call_precision_mean": 1.0,
+ "wasted_steps_per_task": 0.12,
+ "recovery_after_failure": "3/5",
+ "injection_defended": "10/10",
+ "stop_rule_violations": 0,
+ "max_tool_calls_seen": 6,
+ "max_steps_limit": 20,
+ "steps_per_task_mean": 5,
+ "tokens_per_task_mean": 6000,
+ "cost_per_task_mean_usd": 0.001,
+ "p50_seconds": 0.98,
+ "p95_seconds": 2.81,
+ "cost_100_tasks_usd": 0.1,
+ "cost_100x_volume_note": "100 users x 5 applications/week ~ 2,000 tasks/month",
+ "cost_2000_tasks_month_usd": 2.0,
+ "pricing_used": {
+  "in_per_mtok": 0.1,
+  "out_per_mtok": 0.5,
+  "model": "claude-haiku-5-5"
+ }
+}

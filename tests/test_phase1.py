@@ -228,3 +228,74 @@ def test_extract_text_endpoint():
     r = c.post("/api/extract-text", files={"file": ("old_cv.txt", "Lina Haddad\n\n\n\nWorking student, 2025. Built things.".encode())})
     assert r.status_code == 200 and r.json()["text"] == "Lina Haddad\n\nWorking student, 2025. Built things."
     assert c.post("/api/extract-text", files={"file": ("empty.txt", b"  ")}).status_code == 400
+
+
+def _mock_llm(handler, **kw):
+    llm = OpenAICompatLLM("key", "busy-model", "http://test/v1", **kw)
+    llm.client = httpx.Client(base_url="http://test/v1", transport=httpx.MockTransport(handler))
+    return llm
+
+
+GEMINI_503 = [{"error": {"code": 503, "message": "This model is currently experiencing high demand.", "status": "UNAVAILABLE"}}]
+OK = {"choices": [{"finish_reason": "stop", "message": {"content": "hi"}}], "usage": {"prompt_tokens": 5, "completion_tokens": 1}}
+
+
+def test_overloaded_model_falls_back_to_next_model(monkeypatch):
+    import agent.llm as llm_mod
+    monkeypatch.setattr(llm_mod.time, "sleep", lambda s: None)
+    asked = []
+
+    def handler(req):
+        model = json.loads(req.content)["model"]
+        asked.append(model)
+        return httpx.Response(503, json=GEMINI_503) if model == "busy-model" else httpx.Response(200, json=OK)
+
+    r = _mock_llm(handler, fallback_models=["light-model"], tries_per_model=3).complete("S", [{"role": "user", "content": "x"}])
+    assert asked == ["busy-model"] * 3 + ["light-model"]
+    assert r.text == "hi" and r.model == "light-model"
+
+
+def test_overload_error_is_readable_and_suggests_fallback(monkeypatch):
+    import agent.llm as llm_mod
+    monkeypatch.setattr(llm_mod.time, "sleep", lambda s: None)
+    llm = _mock_llm(lambda req: httpx.Response(503, json=GEMINI_503), tries_per_model=2)
+    try:
+        llm.complete("S", [{"role": "user", "content": "x"}])
+        assert False, "should have raised"
+    except LLMError as e:
+        msg = str(e)
+        assert "high demand" in msg and "UNAVAILABLE" in msg and "OPERATOR_FALLBACK_MODELS" in msg
+        assert "[{" not in msg   # no raw JSON dump
+
+
+def test_timeouts_are_retried(monkeypatch):
+    import agent.llm as llm_mod
+    monkeypatch.setattr(llm_mod.time, "sleep", lambda s: None)
+    n = {"i": 0}
+
+    def handler(req):
+        n["i"] += 1
+        if n["i"] == 1:
+            raise httpx.ReadTimeout("slow", request=req)
+        return httpx.Response(200, json=OK)
+
+    assert _mock_llm(handler).complete("S", [{"role": "user", "content": "x"}]).text == "hi"
+
+
+def test_gemini_gets_cleaned_tool_schemas():
+    from agent.llm import _strip_schema
+    seen = {}
+
+    def handler(req):
+        seen["body"] = json.loads(req.content)
+        return httpx.Response(200, json=OK)
+
+    base = "https://generativelanguage.googleapis.com/v1beta/openai"
+    llm = OpenAICompatLLM("key", "gemini-2.5-flash", base)
+    llm.client = httpx.Client(base_url=base, transport=httpx.MockTransport(handler))
+    schema = {"type": "object", "title": "In", "additionalProperties": False,
+              "properties": {"title": {"type": "string", "title": "Title", "default": ""}}, "required": ["title"]}
+    llm.complete("S", [{"role": "user", "content": "x"}], tools=[{"name": "t", "description": "d", "input_schema": schema}])
+    params = seen["body"]["tools"][0]["function"]["parameters"]
+    assert params == {"type": "object", "properties": {"title": {"type": "string"}}, "required": ["title"]}
+    assert _strip_schema(schema) == params

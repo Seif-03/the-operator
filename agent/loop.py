@@ -174,10 +174,14 @@ class AgentRun:
             try:
                 resp = self._complete()
             except Exception as e:
-                self.status, self.stop_reason = "error", f"model call failed: {str(e)[:300]}"
+                self.status, self.stop_reason = "error", f"model call failed: {str(e)[:700]}"
                 self._event("error", error=self.stop_reason)
                 break
             self.llm_calls += 1
+            answered_by = getattr(resp, "model", "")
+            if answered_by and answered_by != self.s.model and answered_by != getattr(self, "_fallback_noted", ""):
+                self._fallback_noted = answered_by
+                self._event("auto_retry", tool="model", error=f"{self.s.model} is busy, switched to the fallback model {answered_by}")
             self.tokens_in += resp.input_tokens
             self.tokens_out += resp.output_tokens
             self.tokens_cache_write += getattr(resp, "cache_write_tokens", 0)
