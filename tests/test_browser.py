@@ -310,3 +310,28 @@ def test_busy_browser_model_hands_over_to_next(monkeypatch):
     b.guard = type("G", (), {"take_blocked": lambda self: []})()
     out, usage = b._run("search", "k", "task", None, None, None, 5, 10)
     assert used == ["busy", "light"] and out == {"ok": True} and usage["model"] == "light"
+
+
+def test_restricted_fill_browser_does_not_block_a_later_search(chrome, sandbox):
+    """browser-use enforces allowed_domains on the whole Chrome: a Browser left from a fill used to block every other
+    site (ERR_BLOCKED_BY_CLIENT on indeed.com during web_search_jobs). Starting the next task must release it."""
+    from agent.browser_agent import _LoopThread
+    c, g, s = chrome
+    b = BrowserUseBackend(s)
+    b.chrome, b.guard, b._loop = c, g, _LoopThread()
+    try:
+        fill_browser = b._browser("run|J-1", ["example.org", "*.example.org"])      # only another site allowed
+        b._loop.run(fill_browser.start(), 60)
+        tid = g.cdp.call("Target.createTarget", url="about:blank")["targetId"]
+        with g.session(tid) as sid:
+            assert g.cdp.call("Page.navigate", session_id=sid, url=sandbox + "/api/jobs").get("errorText") == "net::ERR_BLOCKED_BY_CLIENT"
+        search_browser = b._browser("run|search", None)                              # the next task (a search)
+        b._loop.run(search_browser.start(), 60)
+        assert "run|J-1" not in b.browsers
+        with g.session(tid) as sid:
+            assert "errorText" not in g.cdp.call("Page.navigate", session_id=sid, url=sandbox + "/api/jobs")
+        # the same key with other domains is never reused (read_job_url on any site, then fill on the job site only)
+        assert b._browser("run|search", ["example.org"]) is not search_browser
+    finally:
+        for k in list(b.browsers) + list(b.parked):
+            b.close(k)

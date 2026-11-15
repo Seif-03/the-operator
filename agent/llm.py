@@ -196,6 +196,9 @@ class OpenAICompatLLM:
                     if attempt < self.tries_per_model - 1:
                         time.sleep(_backoff(attempt, r))
                     continue
+                if r.status_code == 404 and model != ([self.model, *self.fallback_models])[-1]:
+                    last = f"HTTP 404 (model not found): {_error_text(r)[:200]}"
+                    break               # this model does not exist (any more): try the next one
                 if r.status_code != 200:
                     raise LLMError(f"API error {r.status_code} from {model}: {_error_text(r)[:500]}")
                 return self._parse(r.json(), model)

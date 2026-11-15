@@ -299,3 +299,28 @@ def test_gemini_gets_cleaned_tool_schemas():
     params = seen["body"]["tools"][0]["function"]["parameters"]
     assert params == {"type": "object", "properties": {"title": {"type": "string"}}, "required": ["title"]}
     assert _strip_schema(schema) == params
+
+
+def test_missing_model_is_skipped_for_the_next(monkeypatch):
+    import agent.llm as llm_mod
+    monkeypatch.setattr(llm_mod.time, "sleep", lambda s: None)
+    asked = []
+    gone = {"error": {"code": 404, "message": "This model models/old-lite is no longer available to new users.", "status": "NOT_FOUND"}}
+
+    def handler(req):
+        model = json.loads(req.content)["model"]
+        asked.append(model)
+        return {"busy-model": httpx.Response(503, json=GEMINI_503), "old-lite": httpx.Response(404, json=gone)}.get(
+            model, httpx.Response(200, json=OK))
+
+    r = _mock_llm(handler, fallback_models=["old-lite", "new-lite"], tries_per_model=2).complete("S", [{"role": "user", "content": "x"}])
+    assert asked == ["busy-model", "busy-model", "old-lite", "new-lite"] and r.model == "new-lite"
+
+
+def test_missing_last_model_reports_404():
+    llm = _mock_llm(lambda req: httpx.Response(404, json={"error": {"message": "no such model", "status": "NOT_FOUND"}}))
+    try:
+        llm.complete("S", [{"role": "user", "content": "x"}])
+        assert False, "should have raised"
+    except LLMError as e:
+        assert "404" in str(e) and "no such model" in str(e)

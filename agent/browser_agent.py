@@ -405,9 +405,9 @@ class _LoopThread:
 
 
 GEMINI_HOST = "generativelanguage.googleapis.com"
-# A model error worth handing to the next model: overloaded, rate-limited or temporarily down.
-BUSY_RX = re.compile(r"\b(429|500|502|503|504|529)\b|overload|high demand|unavailable|resource.?exhausted|rate.?limit|"
-                     r"quota|try again later|timed? ?out", re.I)
+# A model error worth handing to the next model: overloaded, rate-limited, temporarily down, or the model is gone.
+BUSY_RX = re.compile(r"\b(404|429|500|502|503|504|529)\b|overload|high demand|unavailable|resource.?exhausted|rate.?limit|"
+                     r"quota|try again later|timed? ?out|ModelNotFound|not found|no longer available", re.I)
 
 
 def make_browser_llms(s: Settings) -> list:
@@ -529,6 +529,8 @@ class BrowserUseBackend:
         self.chrome: Chrome | None = None
         self.guard: SubmitGuard | None = None
         self.browsers: dict[str, Any] = {}          # (run_id|job_id) -> browser_use.Browser kept alive between steps
+        self.browser_domains: dict[str, Any] = {}   # key -> the allowed_domains its Browser was started with
+        self.parked: dict[str, Any] = {}            # filled applications' Browsers, domain guard removed, tab kept
         self.open: dict[str, OpenApplication] = {}
         self._lock = threading.RLock()     # one browser task at a time: "the tab the agent used last" must be ours
 
@@ -541,6 +543,8 @@ class BrowserUseBackend:
                 self.chrome = Chrome(self.s)
                 self.guard = SubmitGuard(self.chrome.ws_url)
                 self.browsers.clear()
+                self.browser_domains.clear()
+                self.parked.clear()
                 self.open.clear()
             elif self.guard is None or self.guard.cdp.closed.is_set():
                 # Chrome drops a client's Fetch interception when its connection closes: never run without the guard
@@ -550,21 +554,44 @@ class BrowserUseBackend:
 
     def _browser(self, key: str, domains: list[str] | None):
         from browser_use import Browser
+        self._release_others(key)
         b = self.browsers.get(key)
+        if b is not None and self.browser_domains.get(key) != domains:
+            self.close(key)        # e.g. read_job_url (any site) then fill (job site only): never reuse the wider one
+            b = None
         if b is None:
             b = Browser(cdp_url=self.chrome.cdp_url, keep_alive=True, allowed_domains=domains)
-            self.browsers[key] = b
+            self.browsers[key], self.browser_domains[key] = b, domains
         return b
+
+    def _release_others(self, key: str):
+        """browser-use enforces allowed_domains on the WHOLE Chrome (its guard fails main-frame requests in every tab),
+        so a Browser left from an earlier fill would block a later search on another site (ERR_BLOCKED_BY_CLIENT).
+        Only one task runs at a time: stop the others. A filled application waiting for approval keeps its tab; only
+        its domain guard is removed (our SubmitGuard still blocks submissions, and our code does the final click)."""
+        for k in [k for k in self.browsers if k != key]:
+            if k not in self.open:
+                self.close(k)
+                continue
+            b = self.browsers.pop(k)
+            self.browser_domains.pop(k, None)
+            guard = getattr(b, "_guard", None)
+            if guard is not None:
+                b._guard = None
+                with contextlib.suppress(Exception):
+                    guard.close()
+            self.parked[k] = b
 
     def close(self, key: str):
         self.open.pop(key, None)
-        b = self.browsers.pop(key, None)
-        if b is not None and self._loop:
-            with contextlib.suppress(Exception):
-                self._loop.run(b.stop(), 30)
+        self.browser_domains.pop(key, None)
+        for b in (self.browsers.pop(key, None), self.parked.pop(key, None)):
+            if b is not None and self._loop:
+                with contextlib.suppress(Exception):
+                    self._loop.run(b.stop(), 30)
 
     def shutdown(self):
-        for k in list(self.browsers):
+        for k in list(self.browsers) + list(self.parked):
             self.close(k)
         if self.guard:
             self.guard.close()
