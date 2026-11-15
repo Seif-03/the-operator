@@ -404,12 +404,27 @@ class _LoopThread:
         return asyncio.run_coroutine_threadsafe(coro, self.loop).result(timeout)
 
 
+GEMINI_HOST = "generativelanguage.googleapis.com"
+
+
 def make_browser_llm(s: Settings):
-    from browser_use import ChatAnthropic, ChatOpenAI
-    model = s.browser_model or s.model
-    if s.provider == "openai":
-        return ChatOpenAI(model, api_key=s.openai_api_key or "ollama", base_url=s.openai_base_url)
-    return ChatAnthropic(model, api_key=s.anthropic_api_key)
+    """The model browser-use drives the browser with.
+
+    Gemini keys (OPENAI_BASE_URL on generativelanguage.googleapis.com) go through browser-use's native ChatGoogle,
+    which is more reliable for its structured output than Gemini's OpenAI-compatible endpoint. With
+    OPERATOR_FALLBACK_MODELS set (and no separate BROWSER_MODEL), a busy model (503/429) hands over to the next one."""
+    from browser_use import ChatAnthropic, ChatGoogle, ChatOpenAI
+    names = [s.browser_model] if s.browser_model else [s.model, *[m for m in s.fallback_models if m != s.model]]
+    if s.provider == "openai" and GEMINI_HOST in s.openai_base_url:
+        chats = [ChatGoogle(m, api_key=s.openai_api_key) for m in names]
+    elif s.provider == "openai":
+        chats = [ChatOpenAI(m, api_key=s.openai_api_key or "ollama", base_url=s.openai_base_url) for m in names]
+    else:
+        chats = [ChatAnthropic(m, api_key=s.anthropic_api_key) for m in names]
+    if len(chats) == 1:
+        return chats[0]
+    from pydantic_ai.models.fallback import FallbackModel
+    return FallbackModel(*[c.pydantic_model() for c in chats])
 
 
 # Applicant-tracking systems that job sites hand applications to. During fill the browser may open these, the job's own

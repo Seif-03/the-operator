@@ -263,3 +263,20 @@ def test_web_search_results_are_untrusted(bsettings, profile):
     job = run.ctx.jobs[out["results"][0]["job_id"]]
     assert job["contact_email"] is None                            # an address on the page is never trusted
     assert job["apply_url"] == "https://acme.greenhouse.io/apply/123"
+
+
+def test_browser_model_uses_native_gemini_and_fallbacks():
+    from agent.browser_agent import make_browser_llm
+    from agent.config import get_settings
+    gemini = "https://generativelanguage.googleapis.com/v1beta/openai"
+    one = make_browser_llm(get_settings(provider="openai", openai_base_url=gemini, openai_api_key="AIza-test",
+                                        model="gemini-2.5-flash", fallback_models=[], browser_model=""))
+    assert type(one).__name__ == "ChatGoogle" and one.model == "gemini-2.5-flash"
+    chain = make_browser_llm(get_settings(provider="openai", openai_base_url=gemini, openai_api_key="AIza-test",
+                                          model="gemini-2.5-flash", fallback_models=["gemini-2.5-flash-lite"], browser_model=""))
+    assert type(chain).__name__ == "FallbackModel"
+    assert [m.model_name for m in chain.models] == ["gemini-2.5-flash", "gemini-2.5-flash-lite"]
+    # an explicit BROWSER_MODEL is used alone
+    own = make_browser_llm(get_settings(provider="openai", openai_base_url=gemini, openai_api_key="AIza-test",
+                                        model="gemini-2.5-flash", fallback_models=["x"], browser_model="gemini-2.5-pro"))
+    assert type(own).__name__ == "ChatGoogle" and own.model == "gemini-2.5-pro"
