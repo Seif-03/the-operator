@@ -335,3 +335,78 @@ def test_restricted_fill_browser_does_not_block_a_later_search(chrome, sandbox):
     finally:
         for k in list(b.browsers) + list(b.parked):
             b.close(k)
+
+
+def test_chrome_left_running_on_the_profile_is_reused(tmp_path):
+    """Ctrl+C on run.py can leave Chrome running (Windows). The next start used to fail with 'Chrome exited at start'."""
+    from agent.config import get_settings
+    s = get_settings(browser_headless=True, browser_profile_dir=str(tmp_path / "profile"))
+    try:
+        first = Chrome(s)
+    except Exception as e:
+        pytest.skip(f"no Chrome: {e}")
+    try:
+        second = Chrome(s)                       # same profile while the first one still runs
+        assert second.proc is None and second.cdp_url == first.cdp_url and second.alive()
+        g = SubmitGuard(second.ws_url)          # and it can be driven
+        assert g.cdp.call("Target.getTargets")["targetInfos"]
+        g.close()
+    finally:
+        first.stop()
+
+
+def test_search_is_capped_and_text_only(monkeypatch):
+    import browser_use
+    import agent.browser_agent as ba
+    from agent.config import get_settings
+    seen = {}
+
+    class FakeAgent:
+        def __init__(self, task, llm, **kw):
+            seen["kw"] = kw
+
+        async def run(self, max_steps, timeout):
+            seen["max_steps"] = max_steps
+            r = type("R", (), {})()
+            r.structured_output = ba.FoundJobs(jobs=[])
+            r.usage, r.cost_usd, r.status, r.steps, r.error, r.text = {}, 0.0, "done", 1, "", ""
+            return r
+
+    monkeypatch.setattr(browser_use, "Agent", FakeAgent, raising=False)
+    s = get_settings(provider="anthropic", anthropic_api_key="k", browser_search_max_steps=7, browser_max_context_chars=50_000)
+    b = ba.BrowserUseBackend(s)
+    monkeypatch.setattr(b, "_ensure", lambda: None)
+    monkeypatch.setattr(b, "_browser", lambda key, domains: object())
+    b._loop = ba._LoopThread()
+    b.guard = type("G", (), {"take_blocked": lambda self: []})()
+    b._search("k", "python", "Berlin", ["indeed"], 5, 60)
+    assert seen["max_steps"] == 7 and seen["kw"]["use_vision"] is False and seen["kw"]["max_context_chars"] == 50_000
+
+
+def test_browser_tokens_have_their_own_budget(bsettings, profile):
+    bsettings.max_tokens_total, bsettings.max_browser_tokens = 250_000, 1_000_000
+    run = brun(FILL, bsettings, profile, FakeBrowser())
+    run.ctx.browser_usage["input"] = 300_000            # a heavy search: over MAX_TOKENS_TOTAL on its own
+    assert run._limit_hit() == ""                        # ...but the agent's own budget is untouched
+    run.ctx.browser_usage["input"] = 1_000_000
+    assert "browser token budget" in run._limit_hit()
+
+
+def test_real_site_search_never_falls_back_to_the_test_board(bsettings, profile):
+    """Seen live: Indeed could not be read, so the agent searched the test board and applied to J-1008 instead."""
+    run = brun([[("search_jobs", {"query": "data science"})],
+                [("get_job", {"job_id": "J-1008"})],
+                [("finish", {"status": "blocked", "summary": "Real sites could not be read."})]],
+               bsettings, profile, FakeBrowser())
+    run.ctx.real_sites_only = True
+    run.run_until_pause()
+    errs = [s["output"].get("error", "") for s in run.trajectory if not s["ok"]]
+    assert len(errs) == 2 and "REAL job sites" in errs[0] and "test job board" in errs[1]
+    assert not run.ctx.submissions
+
+
+def test_free_tier_prices_make_browser_cost_zero(bsettings, profile):
+    bsettings.price_in_per_mtok = bsettings.price_out_per_mtok = 0
+    run = brun(FILL, bsettings, profile, FakeBrowser())
+    run.ctx.add_browser_usage({"input": 100_000, "output": 5_000, "cost_usd": 0.08})   # browser-use's list-price estimate
+    assert run.ctx.browser_usage["cost_usd"] == 0 and run.ctx.browser_usage["input"] == 100_000

@@ -406,7 +406,8 @@ dialog h2{margin:0 0 6px;font-size:19px}
     <div class="step"><div class="step-n">2</div><div class="step-body">
       <h2>How should it apply?</h2>
       <div class="choices" id="channels">
-        <button class="choice on" data-c="api"><span class="ic"><svg class="i"><use href="#i-grid"/></svg></span><b>Submit on the job board</b><span>You approve, the agent submits. Test board only.</span></button>
+        <button class="choice on" data-c="auto"><span class="ic"><svg class="i"><use href="#i-grid"/></svg></span><b>Best way for each job</b><span>Website, form, email or board: whatever the job offers. You approve every send.</span></button>
+        <button class="choice" data-c="api"><span class="ic"><svg class="i"><use href="#i-grid"/></svg></span><b>Submit on the job board</b><span>You approve, the agent submits. Test board only.</span></button>
         <button class="choice" data-c="email"><span class="ic"><svg class="i"><use href="#i-mail"/></svg></span><b>Send by email</b><span>CV + letter PDFs, to the company's address on record</span></button>
         <button class="choice" data-c="form"><span class="ic"><svg class="i"><use href="#i-form"/></svg></span><b>Fill the online form</b><span>The agent fills it in. <b>You</b> click Submit.</span></button>
         <button class="choice" data-c="browser"><span class="ic"><svg class="i"><use href="#i-external"/></svg></span><b>Apply on the website</b><span>browser-use fills the real application. You approve, then it submits.</span></button>
@@ -545,7 +546,7 @@ const STATUS = {running: "Working", awaiting_approval: "Needs your OK", awaiting
 /* =================================================================== state */
 let CFG = {}, PROFILE = null, DIRTY = false, SKILLS = [], LANGS = [], FILES = [];
 let VIEW = "profile", CUR_RUN = store.get("run", null), RUN = null, POLL = null, LIST_POLL = null, GATE_KEY = null;
-let TARGET = "board", CHANNEL = "api", JOBS = [], PICKED = new Set();
+let TARGET = "board", CHANNEL = "auto", JOBS = [], PICKED = new Set();
 
 /* =================================================================== navigation */
 function show(v) {
@@ -789,6 +790,7 @@ function applyProblem() {
   if (CHANNEL === "api" && (TARGET === "paste" || TARGET === "url")) return "Job board submission only works for test-board jobs. Choose email or form.";
   if (CHANNEL === "email" && (TARGET === "paste" || TARGET === "url") && !/^\S+@\S+\.\S+$/.test($("#contactEmail").value.trim())) return "Enter the email address to apply to.";
   if ((CHANNEL === "form" || CHANNEL === "browser") && TARGET === "paste" && !/^https?:\/\//.test($("#applyUrl").value.trim())) return "Enter the link to the application form.";
+  if (CHANNEL === "auto" && TARGET === "paste" && !/^https?:\/\//.test($("#applyUrl").value.trim()) && !/^\S+@\S+\.\S+$/.test($("#contactEmail").value.trim())) return "For a pasted posting, give the link to the application or the email address to apply to.";
   if ((CHANNEL === "browser" || webOn()) && !CFG.browser_use) return "The browser tools are off: set BROWSER_USE=on in .env and restart.";
   if (webOn() && !webSites().length) return "Pick at least one site to search.";
   return "";
@@ -802,17 +804,17 @@ function updateApply() {
   const own = TARGET === "paste" || TARGET === "url";
   $("#t-details").classList.toggle("hidden", !own);
   $("#detailsHint").textContent = TARGET === "url" ? "Optional: read from the page if empty. These appear on your cover letter." : "Recommended: these appear on your cover letter.";
-  $("#emailBox").classList.toggle("hidden", !(CHANNEL === "email" && own));
-  $("#formBox").classList.toggle("hidden", !(CHANNEL === "form" || (CHANNEL === "browser" && TARGET === "paste"))); $("#applyUrlBox").classList.toggle("hidden", TARGET !== "paste");
+  $("#emailBox").classList.toggle("hidden", !((CHANNEL === "email" || CHANNEL === "auto") && own));
+  $("#formBox").classList.toggle("hidden", !(CHANNEL === "form" || ((CHANNEL === "browser" || CHANNEL === "auto") && TARGET === "paste"))); $("#applyUrlBox").classList.toggle("hidden", TARGET !== "paste");
   $("#showBrowserBox").classList.toggle("hidden", CHANNEL !== "form");
   $("#webBox").classList.toggle("hidden", !CFG.browser_use); $("#webOpts").classList.toggle("hidden", !webOn());
   $("#browserOff").classList.toggle("hidden", !!CFG.browser_use || CHANNEL !== "browser");
   const noBoard = own || CFG.mode === "real" || webOn();
-  $('#channels [data-c="api"]').disabled = noBoard; if (noBoard && CHANNEL === "api") { CHANNEL = "email"; return updateApply(); }
+  $('#channels [data-c="api"]').disabled = noBoard; if (noBoard && CHANNEL === "api") { CHANNEL = "auto"; return updateApply(); }
   const what = TARGET === "board" ? (PICKED.size ? `<b>${PICKED.size} job${PICKED.size > 1 ? "s" : ""}</b> (${[...PICKED].join(", ")})` : "")
     : TARGET === "paste" ? `<b>${esc($("#jobTitle").value.trim() || "your pasted posting")}</b>` : TARGET === "url" ? "<b>the job at your link</b>"
     : `the best <b>${$("#maxApps").value}</b> match${+$("#maxApps").value > 1 ? "es" : ""} for “${esc($("#search").value.trim())}”${webOn() ? " on real job sites" : ""}`;
-  const how = {api: "submit on the board", email: "send by email", form: "fill the form (you submit)", browser: "apply on the website (after your OK)"}[CHANNEL];
+  const how = {auto: "the best way for each job", api: "submit on the board", email: "send by email", form: "fill the form (you submit)", browser: "apply on the website (after your OK)"}[CHANNEL];
   const prob = applyProblem();
   $("#sumText").innerHTML = prob ? esc(prob) : `Apply to ${what} as <b>${esc(PROFILE.name)}</b> · ${how}`;
   $("#startBtn").disabled = !!prob;
@@ -905,7 +907,7 @@ function renderRun(r) {
   const meter = (k, v, max, fmt = x => x) => `<div class="meter"><div class="k">${k}</div><div class="v">${fmt(v)}<span class="muted small" style="font-weight:500"> / ${fmt(max)}</span></div><div class="bar"><i style="width:${Math.min(100, 100 * v / max)}%"></i></div></div>`;
   const tokens = r.tokens_in + (r.tokens_cache_write || 0) + (r.tokens_cache_read || 0) + r.tokens_out;
   $("#meters").innerHTML = meter("Steps", r.tool_calls, L.max_steps || 20) + meter("Cost", r.cost_usd, L.max_cost_usd || .5, x => "$" + (+x).toFixed(x < .01 ? 4 : 3)) +
-    `<div class="meter"><div class="k">Time</div><div class="v">${Math.round(r.seconds)}s</div></div><div class="meter"><div class="k">Tokens</div><div class="v">${tokens.toLocaleString()}</div>${r.tokens_cache_read ? `<div class="small muted">${r.tokens_cache_read.toLocaleString()} from cache</div>` : ""}</div>`;
+    `<div class="meter"><div class="k">Time</div><div class="v">${Math.round(r.seconds)}s</div></div><div class="meter"><div class="k">Tokens</div><div class="v">${tokens.toLocaleString()}</div>${r.tokens_cache_read ? `<div class="small muted">${r.tokens_cache_read.toLocaleString()} from cache</div>` : ""}${r.browser_tokens ? `<div class="small muted">+ ${r.browser_tokens.toLocaleString()} by the browser</div>` : ""}</div>`;
   $("#rDocs").innerHTML = Object.entries(r.documents || {}).map(([j, d]) =>
     `<a class="btn sm" target="_blank" href="/api/file?path=${encodeURIComponent(d.cv_pdf)}">${icon("file")}CV · ${esc(j)}</a><a class="btn sm" target="_blank" href="/api/file?path=${encodeURIComponent(d.letter_pdf)}">${icon("file")}Letter · ${esc(j)}</a>`).join("");
   renderGate(r); renderFeed(r);

@@ -18,6 +18,11 @@ from . import tracing
 from .tools import RunContext, url_job_id
 
 CHANNEL_TEXT = {
+    "auto": "Choose the best way to apply for EACH job from what that job offers (the tool outputs say it): a job on the "
+            "test job board -> submit_application; a real job with an application page -> browser_fill_application then "
+            "browser_submit_application if those tools exist, else inspect_application_form + fill_application_form; email "
+            "(send_application_email) only when the job shows a contact_email_on_record. Never ask me for the company's "
+            "email address.",
     "api": "Submit through the job board (submit_application).",
     "email": "Apply by email (send_application_email).",
     "form": "Fill the job's online application form (inspect_application_form, then fill_application_form). The user clicks Submit.",
@@ -57,12 +62,13 @@ def build_goal(job_ids: list[str], job_url: str | None, search: str | None, chan
 
 def build_run(profile: Profile, goal: str, settings: Settings | None = None, llm=None,
               allowed_job_ids: set[str] | None = None, contacts: dict[str, str] | None = None,
-              run_id: str | None = None, form_headed: bool = False, user_jobs: dict[str, dict] | None = None) -> AgentRun:
+              run_id: str | None = None, form_headed: bool = False, user_jobs: dict[str, dict] | None = None,
+              real_sites_only: bool = False) -> AgentRun:
     s = settings or get_settings()
     llm = llm or make_llm(s)
     ctx = RunContext(settings=s, profile=profile.model_copy(deep=True), run_id=run_id or new_run_id(),
                      allowed_job_ids=allowed_job_ids, user_contact_emails=contacts or {}, form_headed=form_headed,
-                     user_jobs=user_jobs or {})
+                     user_jobs=user_jobs or {}, real_sites_only=real_sites_only)
     return AgentRun(ctx, llm, goal, s, logger=make_logger(s))
 
 
@@ -97,7 +103,7 @@ def main():
     ap.add_argument("--job", action="append", default=[])
     ap.add_argument("--url")
     ap.add_argument("--search")
-    ap.add_argument("--channel", choices=["api", "email", "form", "browser"], default="api")
+    ap.add_argument("--channel", choices=["auto", "api", "email", "form", "browser"], default="auto")
     ap.add_argument("--web", action="store_true", help="with --search: search real job sites with browser-use")
     ap.add_argument("--location", default="")
     ap.add_argument("--notes", default="")
@@ -113,7 +119,7 @@ def main():
         m = re.search(r"/(?:jobs|apply)/(J-\d{4})", a.url)
         allowed = (allowed or set()) | {m.group(1) if (m and a.url.startswith(s.sandbox_url)) else url_job_id(a.url)}
     run = build_run(prof, build_goal(a.job, a.url, a.search, a.channel, a.notes, web_search=a.web, location=a.location),
-                    s, allowed_job_ids=allowed)
+                    s, allowed_job_ids=allowed, real_sites_only=bool(a.web and a.search))
     while True:
         st = run.run_until_pause()
         if st == "awaiting_approval":

@@ -92,6 +92,9 @@ class AnthropicLLM:
                  max_tokens: int | None = None) -> LLMResponse:
         # Prompt caching: each loop step re-sends tools + system + the whole history. The automatic breakpoint
         # caches everything up to the last message, so the next step reads that prefix at ~10% of the price.
+        messages = [{**m, "content": [{k: v for k, v in b.items() if k != "extra_content"} if isinstance(b, dict) else b
+                                      for b in m["content"]]} if isinstance(m.get("content"), list) else m
+                    for m in messages]   # a run saved with another provider may carry Gemini-only fields
         body = {"model": self.model, "max_tokens": max_tokens or self.max_tokens, "system": system, "messages": messages,
                 "cache_control": {"type": "ephemeral"}}
         if tools:
@@ -150,7 +153,9 @@ class OpenAICompatLLM:
             if m["role"] == "assistant":
                 text = "".join(b.get("text", "") for b in content if b.get("type") == "text")
                 calls = [{"id": b["id"], "type": "function",
-                          "function": {"name": b["name"], "arguments": json.dumps(b.get("input", {}))}}
+                          "function": {"name": b["name"], "arguments": json.dumps(b.get("input", {}))},
+                          # Gemini 3 thinking models: the call's thought_signature must come back unchanged (400 otherwise)
+                          **({"extra_content": b["extra_content"]} if b.get("extra_content") else {})}
                          for b in content if b.get("type") == "tool_use"]
                 msg = {"role": "assistant", "content": text or None}
                 if calls:
@@ -222,7 +227,10 @@ class OpenAICompatLLM:
                 args = {"unparseable_arguments": c["function"].get("arguments", "")[:500]}
             call = {"id": c.get("id") or f"call_{len(calls)}", "name": c["function"]["name"], "input": args}
             calls.append(call)
-            content.append({"type": "tool_use", **call})
+            block = {"type": "tool_use", **call}
+            if c.get("extra_content"):   # Gemini: {"google": {"thought_signature": ...}}, kept for the next request
+                block["extra_content"] = c["extra_content"]
+            content.append(block)
         usage = data.get("usage") or {}
         # OpenAI caches long prompts automatically; prompt_tokens INCLUDES the cached part.
         cached = ((usage.get("prompt_tokens_details") or {}).get("cached_tokens")) or 0

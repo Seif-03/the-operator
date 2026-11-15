@@ -71,7 +71,16 @@ class Settings:
     browser_executable: str = os.environ.get("BROWSER_EXECUTABLE", "")  # default: Chrome / Chromium / Edge found on the machine
     # A dedicated profile: log in to LinkedIn / Indeed once in the window The Operator opens, the login is kept.
     browser_profile_dir: str = os.environ.get("BROWSER_PROFILE_DIR") or str(ROOT / "data" / "browser-profile")
-    browser_max_steps: int = int(os.environ.get("BROWSER_MAX_STEPS", 30))           # browser-use model requests per task
+    browser_max_steps: int = int(os.environ.get("BROWSER_MAX_STEPS", 30))           # browser-use model requests per fill
+    # Searching and reading need far fewer steps than filling a form. Every step re-sends the conversation, so steps
+    # are what tokens grow with: these are the main token limits for web_search_jobs / read_job_url.
+    browser_search_max_steps: int = int(os.environ.get("BROWSER_SEARCH_MAX_STEPS", 10))
+    browser_read_max_steps: int = int(os.environ.get("BROWSER_READ_MAX_STEPS", 12))
+    # Past 75% of this many characters, browser-use compacts its history into a summary: caps tokens per step.
+    browser_max_context_chars: int = int(os.environ.get("BROWSER_MAX_CONTEXT_CHARS", 60_000))
+    # Token budget for all browser-use tasks of a run, separate from MAX_TOKENS_TOTAL (the agent's own model calls),
+    # so a heavy search cannot use up the agent's budget. MAX_COST_USD still covers both.
+    max_browser_tokens: int = int(os.environ.get("MAX_BROWSER_TOKENS", 400_000))
     browser_timeout_s: float = _f("BROWSER_TIMEOUT_S", 300)
     browser_any_domain: bool = os.environ.get("BROWSER_ANY_DOMAIN", "false").strip().lower() in ("1", "true", "yes")
 

@@ -355,11 +355,17 @@ def _find_chrome() -> str:
 
 class Chrome:
     """A Chrome/Chromium we start ourselves, with a debugging port and a persistent profile (logins survive)."""
+    PORT_FILE = "operator-debug-port"
 
     def __init__(self, settings: Settings):
-        self.binary = settings.browser_executable or _find_chrome()
         self.profile_dir = Path(settings.browser_profile_dir)
         self.profile_dir.mkdir(parents=True, exist_ok=True)
+        self.proc = None
+        # A Chrome from an earlier start (the app was stopped with Ctrl+C, or crashed) may still hold this profile.
+        # A second Chrome on the same profile exits at once, so reuse the running one: it keeps its tabs and logins.
+        if self._attach_running():
+            return
+        self.binary = settings.browser_executable or _find_chrome()
         self.port = _free_port()
         args = [self.binary, f"--remote-debugging-port={self.port}", "--remote-debugging-address=127.0.0.1",
                 f"--user-data-dir={self.profile_dir}", "--no-first-run", "--no-default-browser-check",
@@ -374,22 +380,57 @@ class Chrome:
         while True:
             try:
                 self.ws_url = httpx.get(self.cdp_url + "/json/version", timeout=1).json()["webSocketDebuggerUrl"]
+                with contextlib.suppress(OSError):
+                    (self.profile_dir / self.PORT_FILE).write_text(str(self.port), encoding="utf-8")
                 break
             except Exception:
                 if self.proc.poll() is not None:
-                    raise RuntimeError(f"Chrome exited at start (is another Chrome using {self.profile_dir}?)")
+                    if self._attach_running(wait=5):
+                        return
+                    raise RuntimeError(
+                        f"Chrome exited at start: another Chrome window is using the profile {self.profile_dir}. "
+                        "Close that window (or end chrome.exe in Task Manager), then start the run again.")
                 if time.time() > deadline:
                     self.proc.kill()
                     raise RuntimeError("Chrome did not open its debugging port within 30 s")
                 time.sleep(0.3)
 
+    def _attach_running(self, wait: float = 0) -> bool:
+        """Use a Chrome that already runs on this profile with a debugging port (we note it in PORT_FILE at start;
+        Chrome's own DevToolsActivePort is read too)."""
+        deadline = time.time() + wait
+        while True:
+            for name in (self.PORT_FILE, "DevToolsActivePort"):
+                with contextlib.suppress(Exception):
+                    port = int((self.profile_dir / name).read_text().split()[0])
+                    url = f"http://127.0.0.1:{port}"
+                    self.ws_url = httpx.get(url + "/json/version", timeout=1).json()["webSocketDebuggerUrl"]
+                    self.port, self.cdp_url = port, url
+                    return True
+            if time.time() >= deadline:
+                return False
+            time.sleep(0.3)
+
     def alive(self) -> bool:
-        return self.proc.poll() is None
+        if self.proc is not None:
+            return self.proc.poll() is None
+        try:
+            httpx.get(self.cdp_url + "/json/version", timeout=1)
+            return True
+        except Exception:
+            return False
 
     def stop(self):
-        with contextlib.suppress(Exception):
-            self.proc.terminate()
-            self.proc.wait(5)
+        if self.proc is not None:
+            with contextlib.suppress(Exception):
+                self.proc.terminate()
+                self.proc.wait(5)
+            return
+        with contextlib.suppress(Exception):     # a Chrome we attached to: ask it to close
+            cdp = CDP(self.ws_url)
+            cdp.send("Browser.close")
+            time.sleep(0.5)
+            cdp.close()
 
 
 # ---------------------------------------------------------------------------------------------- browser-use plumbing
@@ -606,6 +647,9 @@ class BrowserUseBackend:
         self._ensure()
         browser = self._browser(key, domains)
         kw = {"workspace": str(workspace)} if workspace else {}
+        kw["max_context_chars"] = self.s.browser_max_context_chars
+        if op in ("search", "read"):
+            kw["use_vision"] = False      # reading text needs no screenshots, and each one costs tokens on every step
         t0 = time.time()
         llms = make_browser_llms(self.s)
         for n, llm in enumerate(llms):
@@ -667,9 +711,12 @@ class BrowserUseBackend:
         starts = [SITES[s].format(q=query.replace(" ", "+"), loc=location.replace(" ", "+")) for s in sites if s in SITES]
         task = (f"Find up to {limit} real, currently open job postings for: '{query}'" + (f" in {location}" if location else "") +
                 ".\nStart from these pages (use another if one needs a login): " + ", ".join(starts) +
-                "\nFor each job give the title, company, location, the URL of the posting itself (not a search page) and a "
-                "one-sentence snippet. Only read; do not apply or click Apply.\n\n" + BROWSER_RULES)
-        out, usage = self._run("search", key, task, FoundJobs, None, None, self.s.browser_max_steps, timeout)
+                "\nFor each job give the title, company, location, the URL of the posting itself (not a search page; on "
+                "Indeed the viewjob?jk=... link, not an /rc/clk or /pagead/clk redirect) and a "
+                "one-sentence snippet. Only read; do not apply or click Apply.\n"
+                "Be economical: take the jobs from the results list itself (do not open every posting), and stop as soon "
+                f"as you have {limit} jobs or after the first site that works.\n\n" + BROWSER_RULES)
+        out, usage = self._run("search", key, task, FoundJobs, None, None, self.s.browser_search_max_steps, timeout)
         jobs = [j.model_dump() for j in out.jobs[:limit] if j.url.startswith("http")]
         return jobs, usage
 
@@ -677,7 +724,7 @@ class BrowserUseBackend:
         task = (f"Open {url} and copy the job posting: title, company, location, the full description text "
                 "(copy it, do not summarise), the link behind the Apply button if it leads to another page, and an "
                 "application email only if the posting states one. Do not click Apply on a form, do not log in.\n\n" + BROWSER_RULES)
-        out, usage = self._run("read", key, task, JobPage, None, None, min(self.s.browser_max_steps, 15), timeout)
+        out, usage = self._run("read", key, task, JobPage, None, None, self.s.browser_read_max_steps, timeout)
         return out.model_dump(), usage
 
     def _fill(self, key: str, job_id: str, url: str, packet: dict, files: list[Path], domains: list[str] | None,

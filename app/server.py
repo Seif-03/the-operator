@@ -235,7 +235,7 @@ class RunIn(BaseModel):
     job_company: str = Field("", max_length=150)
     job_location: str = Field("", max_length=100)
     apply_url: str = Field("", max_length=500)
-    channel: str = Field("api", pattern="^(api|email|form|browser)$")
+    channel: str = Field("auto", pattern="^(auto|api|email|form|browser)$")
     web_search: bool = False                       # search real job sites with browser-use
     location: str = Field("", max_length=80)
     sites: list[str] = Field(default_factory=lambda: ["linkedin", "indeed"], max_length=4)
@@ -274,6 +274,8 @@ def start_run(r: RunIn):
         raise HTTPException(400, "sites: linkedin, indeed, stepstone or web")
     if r.job_text.strip() and r.channel in ("form", "browser") and not r.apply_url.strip():
         raise HTTPException(400, "Form filling needs the link to the application form.")
+    if r.job_text.strip() and r.channel == "auto" and not r.apply_url.strip() and not r.contact_email.strip():
+        raise HTTPException(400, "For a pasted posting, give the link to the application or the email address to apply to.")
     for u in (r.job_url, r.apply_url):
         if u and not u.strip().startswith(("http://", "https://")):
             raise HTTPException(400, f"Links must start with http:// or https:// ({u[:60]})")
@@ -309,7 +311,7 @@ def start_run(r: RunIn):
                       pasted_job_id=pasted_id, web_search=r.web_search, location=r.location.strip(), sites=r.sites)
     try:
         run = build_run(prof, goal, s, allowed_job_ids=allowed, contacts=contacts, form_headed=r.show_browser,
-                        user_jobs=user_jobs)
+                        user_jobs=user_jobs, real_sites_only=r.web_search)
     except LLMError as e:
         raise HTTPException(400, str(e))
     RUNS[run.id] = run

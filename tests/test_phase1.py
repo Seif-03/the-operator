@@ -324,3 +324,67 @@ def test_missing_last_model_reports_404():
         assert False, "should have raised"
     except LLMError as e:
         assert "404" in str(e) and "no such model" in str(e)
+
+
+def test_gemini_thought_signature_goes_back_with_the_call():
+    """Gemini 3 answers 400 'Function call is missing a thought_signature' unless it is returned unchanged."""
+    sig = {"google": {"thought_signature": "c2lnLTEyMw=="}}
+    bodies = []
+
+    def handler(req):
+        bodies.append(json.loads(req.content))
+        if len(bodies) == 1:
+            return httpx.Response(200, json={"choices": [{"finish_reason": "tool_calls", "message": {"content": None, "tool_calls": [
+                {"id": "c1", "type": "function", "extra_content": sig,
+                 "function": {"name": "get_profile", "arguments": "{}"}}]}}], "usage": {}})
+        return httpx.Response(200, json=OK)
+
+    llm = _mock_llm(handler)
+    history = [{"role": "user", "content": "Apply to J-1001"}]
+    r = llm.complete("S", history)
+    assert r.content[0]["extra_content"] == sig and r.tool_calls == [{"id": "c1", "name": "get_profile", "input": {}}]
+    history += [{"role": "assistant", "content": r.content},
+                {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "c1", "content": "{}"}]}]
+    llm.complete("S", history)
+    sent = bodies[1]["messages"][2]
+    assert sent["role"] == "assistant" and sent["tool_calls"][0]["extra_content"] == sig
+
+
+def test_anthropic_does_not_receive_gemini_fields():
+    from agent.llm import AnthropicLLM
+    seen = {}
+
+    def handler(req):
+        seen["body"] = json.loads(req.content)
+        return httpx.Response(200, json={"content": [{"type": "text", "text": "ok"}], "usage": {}})
+
+    llm = AnthropicLLM("key", "claude-haiku-5-5")
+    llm.client = httpx.Client(base_url="https://api.anthropic.com", transport=httpx.MockTransport(handler))
+    msgs = [{"role": "user", "content": "x"},
+            {"role": "assistant", "content": [{"type": "tool_use", "id": "c1", "name": "get_profile", "input": {},
+                                               "extra_content": {"google": {"thought_signature": "s"}}}]},
+            {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "c1", "content": "{}"}]}]
+    llm.complete("S", msgs)
+    assert "extra_content" not in seen["body"]["messages"][1]["content"][0]
+    assert "extra_content" in msgs[1]["content"][0]      # the run's own history is not changed
+
+
+def test_redirect_links_become_the_posting_page():
+    from agent.tools import canonical_job_url, url_job_id
+    assert canonical_job_url("https://de.indeed.com/rc/clk?jk=abc123&bb=x&xkcb=y") == "https://de.indeed.com/viewjob?jk=abc123"
+    assert canonical_job_url("https://de.indeed.com/pagead/clk?mo=r&jk=abc123&ad=zz") == "https://de.indeed.com/viewjob?jk=abc123"
+    assert canonical_job_url("https://www.linkedin.com/jobs/view/werkstudent-python-at-acme-4012345678/?trk=x") == \
+        "https://www.linkedin.com/jobs/view/4012345678/"
+    assert canonical_job_url("https://www.linkedin.com/jobs/search/?currentJobId=4012345678&keywords=x") == \
+        "https://www.linkedin.com/jobs/view/4012345678/"
+    assert canonical_job_url("https://www.stepstone.de/stellenangebote--x-123.html") == "https://www.stepstone.de/stellenangebote--x-123.html"
+    # the same job found as a redirect link and read as the posting link is ONE job (allowed-jobs checks rely on it)
+    assert url_job_id("https://de.indeed.com/rc/clk?jk=abc123&bb=x") == url_job_id("https://de.indeed.com/viewjob?jk=abc123")
+
+
+def test_best_way_channel_never_asks_for_recipient():
+    from agent.runner import build_goal
+    from agent.loop import SYSTEM_PROMPT
+    g = build_goal([], None, "werkstudent python", "auto", web_search=True, location="Berlin")
+    assert "best way" in g.lower() and "contact_email_on_record" in g and "Never ask me for the company's email" in g
+    assert "do not ask the user\n   for the company's email address" in SYSTEM_PROMPT
