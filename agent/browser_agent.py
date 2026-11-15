@@ -405,26 +405,27 @@ class _LoopThread:
 
 
 GEMINI_HOST = "generativelanguage.googleapis.com"
+# A model error worth handing to the next model: overloaded, rate-limited or temporarily down.
+BUSY_RX = re.compile(r"\b(429|500|502|503|504|529)\b|overload|high demand|unavailable|resource.?exhausted|rate.?limit|"
+                     r"quota|try again later|timed? ?out", re.I)
 
 
-def make_browser_llm(s: Settings):
-    """The model browser-use drives the browser with.
-
-    Gemini keys (OPENAI_BASE_URL on generativelanguage.googleapis.com) go through browser-use's native ChatGoogle,
-    which is more reliable for its structured output than Gemini's OpenAI-compatible endpoint. With
-    OPERATOR_FALLBACK_MODELS set (and no separate BROWSER_MODEL), a busy model (503/429) hands over to the next one."""
+def make_browser_llms(s: Settings) -> list:
+    """The models browser-use may drive the browser with, in order: BROWSER_MODEL alone, else OPERATOR_MODEL then
+    OPERATOR_FALLBACK_MODELS. Gemini keys (OPENAI_BASE_URL on generativelanguage.googleapis.com) use browser-use's
+    native ChatGoogle, which is more reliable for its structured output than Gemini's OpenAI-compatible endpoint.
+    (browser-use reads each model's profile, so pydantic-ai's FallbackModel cannot be used: we fall back ourselves.)"""
     from browser_use import ChatAnthropic, ChatGoogle, ChatOpenAI
     names = [s.browser_model] if s.browser_model else [s.model, *[m for m in s.fallback_models if m != s.model]]
     if s.provider == "openai" and GEMINI_HOST in s.openai_base_url:
-        chats = [ChatGoogle(m, api_key=s.openai_api_key) for m in names]
-    elif s.provider == "openai":
-        chats = [ChatOpenAI(m, api_key=s.openai_api_key or "ollama", base_url=s.openai_base_url) for m in names]
-    else:
-        chats = [ChatAnthropic(m, api_key=s.anthropic_api_key) for m in names]
-    if len(chats) == 1:
-        return chats[0]
-    from pydantic_ai.models.fallback import FallbackModel
-    return FallbackModel(*[c.pydantic_model() for c in chats])
+        return [ChatGoogle(m, api_key=s.openai_api_key) for m in names]
+    if s.provider == "openai":
+        return [ChatOpenAI(m, api_key=s.openai_api_key or "ollama", base_url=s.openai_base_url) for m in names]
+    return [ChatAnthropic(m, api_key=s.anthropic_api_key) for m in names]
+
+
+def make_browser_llm(s: Settings):
+    return make_browser_llms(s)[0]
 
 
 # Applicant-tracking systems that job sites hand applications to. During fill the browser may open these, the job's own
@@ -578,16 +579,28 @@ class BrowserUseBackend:
         self._ensure()
         browser = self._browser(key, domains)
         kw = {"workspace": str(workspace)} if workspace else {}
-        agent = Agent(task, llm=make_browser_llm(self.s), browser=browser, output_model_schema=schema, **kw)
         t0 = time.time()
-        res = self._loop.run(agent.run(max_steps=max_steps, timeout=timeout), timeout + 90)
+        llms = make_browser_llms(self.s)
+        for n, llm in enumerate(llms):
+            last = n == len(llms) - 1
+            agent = Agent(task, llm=llm, browser=browser, output_model_schema=schema, **kw)
+            try:
+                res = self._loop.run(agent.run(max_steps=max_steps, timeout=timeout), timeout + 90)
+            except Exception as e:      # the model client raised before the run could finish
+                if last or not BUSY_RX.search(str(e)):
+                    raise
+                continue
+            if res.structured_output is None and not last and BUSY_RX.search(f"{res.error or ''} {res.text or ''}"):
+                continue                # the model was busy: same task with the next model
+            break
         u = dict(res.usage or {})
         usage = {"input": u.get("input", 0), "output": u.get("output", 0), "cache_read": u.get("cache_read", 0),
                  "cache_write": u.get("cache_write", 0), "requests": u.get("requests", 0),
                  "cost_usd": res.cost_usd, "seconds": round(time.time() - t0, 1), "status": res.status,
                  "error": res.error, "blocked_submissions": self.guard.take_blocked()}
+        usage["model"] = getattr(llm, "model", "")
         tracing.set_usage(usage["input"], usage["output"], usage["cache_read"], usage["cache_write"],
-                          model=self.s.browser_model or self.s.model, provider=self.s.provider)
+                          model=usage["model"] or self.s.model, provider=self.s.provider)
         tracing.add_metadata(browser_use_op=op, browser_use_status=res.status, browser_use_steps=res.steps)
         out = res.structured_output
         if out is None:

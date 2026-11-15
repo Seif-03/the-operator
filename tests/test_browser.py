@@ -266,17 +266,47 @@ def test_web_search_results_are_untrusted(bsettings, profile):
 
 
 def test_browser_model_uses_native_gemini_and_fallbacks():
-    from agent.browser_agent import make_browser_llm
+    from browser_use.llm import resolve_model
+    from agent.browser_agent import make_browser_llms
     from agent.config import get_settings
     gemini = "https://generativelanguage.googleapis.com/v1beta/openai"
-    one = make_browser_llm(get_settings(provider="openai", openai_base_url=gemini, openai_api_key="AIza-test",
-                                        model="gemini-2.5-flash", fallback_models=[], browser_model=""))
-    assert type(one).__name__ == "ChatGoogle" and one.model == "gemini-2.5-flash"
-    chain = make_browser_llm(get_settings(provider="openai", openai_base_url=gemini, openai_api_key="AIza-test",
-                                          model="gemini-2.5-flash", fallback_models=["gemini-2.5-flash-lite"], browser_model=""))
-    assert type(chain).__name__ == "FallbackModel"
-    assert [m.model_name for m in chain.models] == ["gemini-2.5-flash", "gemini-2.5-flash-lite"]
+    chain = make_browser_llms(get_settings(provider="openai", openai_base_url=gemini, openai_api_key="AIza-test",
+                                           model="gemini-2.5-flash", fallback_models=["gemini-2.5-flash-lite"], browser_model=""))
+    assert [(type(m).__name__, m.model) for m in chain] == [("ChatGoogle", "gemini-2.5-flash"), ("ChatGoogle", "gemini-2.5-flash-lite")]
+    for m in chain:   # browser-use reads the model profile: every model must have one (FallbackModel did not)
+        assert resolve_model(m)[0].profile is not None
     # an explicit BROWSER_MODEL is used alone
-    own = make_browser_llm(get_settings(provider="openai", openai_base_url=gemini, openai_api_key="AIza-test",
-                                        model="gemini-2.5-flash", fallback_models=["x"], browser_model="gemini-2.5-pro"))
-    assert type(own).__name__ == "ChatGoogle" and own.model == "gemini-2.5-pro"
+    own = make_browser_llms(get_settings(provider="openai", openai_base_url=gemini, openai_api_key="AIza-test",
+                                         model="gemini-2.5-flash", fallback_models=["x"], browser_model="gemini-2.5-pro"))
+    assert [m.model for m in own] == ["gemini-2.5-pro"]
+
+
+def test_busy_browser_model_hands_over_to_next(monkeypatch):
+    import agent.browser_agent as ba
+    from agent.config import get_settings
+    used = []
+
+    class Res:
+        def __init__(self, ok, err=""):
+            self.structured_output, self.error, self.text = ({"ok": True} if ok else None), err, ""
+            self.usage, self.cost_usd, self.status, self.steps = {}, 0.0, "done" if ok else "error", 1
+
+    class FakeAgent:
+        def __init__(self, task, llm, **kw):
+            self.llm = llm
+
+        async def run(self, **kw):
+            used.append(self.llm.model)
+            return Res(False, "503 UNAVAILABLE: high demand") if self.llm.model == "busy" else Res(True)
+
+    import browser_use
+    monkeypatch.setattr(browser_use, "Agent", FakeAgent, raising=False)
+    s = get_settings(provider="openai", openai_base_url="https://generativelanguage.googleapis.com/v1beta/openai",
+                     openai_api_key="AIza-test", model="busy", fallback_models=["light"], browser_model="")
+    b = ba.BrowserUseBackend(s)
+    monkeypatch.setattr(b, "_ensure", lambda: None)
+    monkeypatch.setattr(b, "_browser", lambda key, domains: object())
+    b._loop = ba._LoopThread()
+    b.guard = type("G", (), {"take_blocked": lambda self: []})()
+    out, usage = b._run("search", "k", "task", None, None, None, 5, 10)
+    assert used == ["busy", "light"] and out == {"ok": True} and usage["model"] == "light"

@@ -159,7 +159,7 @@ class AgentRun:
         return self.status
 
     @tracing.traceable(run_type="chain", name="operator.run_until_pause",
-                       process_inputs=lambda i: {"run_id": i["self"].id, "goal": i["self"].goal})
+                       process_inputs=lambda i: {"run_id": i["self"].id, "goal": i["self"].goal} if "self" in i else dict(i))
     def _traced_run(self) -> str:
         self._loop()
         return {"status": self.status, "stop_reason": self.stop_reason, "final": self.final, "tool_calls": self.tool_calls,
@@ -201,7 +201,8 @@ class AgentRun:
         return self.status
 
     @tracing.traceable(run_type="llm", name="llm.complete",
-                       process_inputs=lambda i: {"messages": i["self"].messages[-6:], "n_messages": len(i["self"].messages)})
+                       process_inputs=lambda i: ({"messages": i["self"].messages[-6:], "n_messages": len(i["self"].messages)}
+                                                if "self" in i else dict(i)))
     def _complete(self):
         resp = self.llm.complete(SYSTEM_PROMPT, self.messages, tools=tool_specs(self.s))
         tracing.set_usage(resp.input_tokens, resp.output_tokens, getattr(resp, "cache_read_tokens", 0),
