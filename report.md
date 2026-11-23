@@ -1,7 +1,7 @@
 # The Operator: what it does, in simple words
 
-> This is a plain-language guide to the app and to what is still missing.
-> The formal course report (max 4 pages, with the measured results) is a separate file: `docs/report.md`, which becomes `report.pdf`.
+> This is a plain-language guide to the app and remaining work.
+> The formal course report and measured evaluation are in `docs/report.md`.
 
 ## 1. What the app does
 
@@ -11,7 +11,7 @@ The Operator is an **AI assistant that applies to jobs for you**, but never behi
 2. You point it at **a job**: a test job, a job link, or a job description you paste.
 3. The AI **writes a CV and a cover letter tailored to that job**, using *only* your facts.
 4. It **stops and shows you everything** before anything is sent: the CV, the letter, who it goes to.
-5. Only when you click **Approve** does it apply: it submits on the job board, sends an email, or fills in the online form (where *you* still press Submit).
+5. Only when you click **Approve** does it apply: it submits on the sandbox job board, sends an email, or fills in a form. For sandbox forms, *you* still press Submit. An optional browser workflow can apply on real sites after a separate approval.
 
 ### What keeps it safe
 
@@ -24,7 +24,7 @@ The Operator is an **AI assistant that applies to jobs for you**, but never behi
 | Private data leaks (passport, ID numbers) | Private details are never shown to the AI, and any outgoing text containing them is blocked. |
 | Mistakes reach a real company | By default everything goes to a **sandbox**: a fake job board and mailbox that you can reset. |
 
-## 2. The four pages
+## 2. The five pages
 
 ### Profile: "who you are"
 The **only source of truth**: the AI may claim nothing that is not written here.
@@ -43,7 +43,7 @@ The **only source of truth**: the AI may claim nothing that is not written here.
 Three steps, then **Start**:
 
 1. **Which job?** Pick test jobs from the board (the ones marked *hidden attack* are deliberate traps for testing), paste a job description, give a job link, or let it search.
-2. **How?** Submit on the job board, send by email, or fill the online form (you click Submit yourself).
+2. **How?** Submit on the sandbox board, send by email, fill a sandbox form (you click Submit), or optionally use the browser workflow on a real site.
 3. **Notes** (optional): for example "write the letter in German".
 
 The dark bar at the bottom says in one sentence what will happen. If something is missing, it tells you what.
@@ -58,26 +58,27 @@ The dark bar at the bottom says in one sentence what will happen. If something i
   - **Don't apply**: nothing is sent.
 - **What it did**: every step in plain words. "details" shows the exact technical input and output.
 
+### Tracker: "keep up with applications"
+- Confirmed applications from agent runs are added automatically. A form that is filled but not submitted is marked **Ready to submit**, not Applied.
+- Add applications made outside the app; update status, set a follow-up date, add notes, or remove an entry.
+
 ### Sandbox: "what was sent in test mode"
 The fake job board's **submitted applications** and the **test outbox**. Use it to check, for example, that an email went to the company's real address and not to an attacker's. **Reset** wipes it.
 
-## 3. What is missing
+## 3. Evaluation and remaining work
 
-### Needed for the grade (in order)
-1. **Run the full evaluation** (40 test scenarios) with the real model and fill in the results. All the numbers in `README.md` and `docs/report.md` still say *tbd*. With gpt-4.1-mini this costs about $0.30–0.50.
-2. **Three error types have no test yet**: "job not found", "user edits before approving" and "AI service down" (see `errors.md`).
-3. **Write the final report** with the real numbers and export it as **report.pdf**. Today it is only a draft.
-4. **Update the postmortem** with real problems found. Two are already known:
-   - The cover letter was limited to 600 characters, so the AI had to cut its letter. Fixed: now 4,000.
-   - The profile import crashed when the AI returned "no value" for the phone number. Fixed: the output is now cleaned up.
-5. **Fill in the Contributions table** in `README.md` (who did what).
-6. **Mention the model change in the report**: the app now runs on OpenAI's gpt-4.1-mini (it can also use Claude or free models). The report and eval should say which model produced the numbers.
+The recorded 40-scenario evaluation used **gpt-4.1-mini** in sandbox mode: 35/40 scenarios succeeded (87.5%), with 0 stop-rule violations and no harmful writes in the 10 injection scenarios. The two injection failures were safe stops that failed to complete the requested application. See `docs/report.md` and `eval/results/gpt-4.1-mini/` for the detailed metrics and limits of this evaluation.
+
+### Remaining work
+- Add dedicated tests for the error cases currently marked without tests in `errors.md`, including job-not-found, user-edited content, and model API failure.
+- Run a separate evaluation of the optional browser workflow on representative real job sites; the existing 40-scenario evaluation covers sandbox channels, not live-site reliability.
+- Complete the remaining team-contribution entries in `README.md`.
 
 ### Would make the app more useful (after the hand-in)
-- **Application tracker**: a list of everything you applied to, with status (sent, interview, rejected).
 - **"Should I apply?" check**: a match score and the requirements you don't meet, before writing anything.
 - **Nicer PDFs**: the CV and letter PDFs are plain. A real template would help.
 - **Letter language**: in a German letter, the "Application:" line and the date are still in English.
-- **Real job sites**: links to LinkedIn or Indeed often can't be read (those sites block it), so pasting the posting is the reliable way. Job *search* only works on the test board.
 - **Edit the CV before approving**: today only the letter and email can be edited at the approval step.
-- **Form filling on real sites** has only been tested on the sandbox forms.
+- **Improve job-site reliability**: real-site search, reading and applying are available through the optional browser workflow, but site-specific reliability still needs testing; pasting the posting remains a fallback.
+
+For the detailed design, safeguards and evaluation metrics, see `docs/report.md`.

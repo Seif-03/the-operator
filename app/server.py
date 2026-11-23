@@ -5,7 +5,10 @@ import json
 import os
 import re
 import threading
+import uuid
+from datetime import date, datetime
 from pathlib import Path
+from typing import Literal
 
 import httpx
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -26,11 +29,13 @@ PROFILE_DIR = ROOT / "data" / "profiles"
 PROFILE_DIR.mkdir(parents=True, exist_ok=True)
 SAMPLE = ROOT / "sandbox" / "profiles" / "lina.json"
 RUNS_DIR = ROOT / "data" / "runs"
+TRACKER_FILE = ROOT / "data" / "applications.json"
 
 app = FastAPI(title="The Operator")
 # Runs are saved to data/runs/ after every step, so a restart does not lose a run waiting for approval.
 RUNS: dict[str, AgentRun] = load_runs(RUNS_DIR)
 LOCKS: dict[str, threading.Lock] = {k: threading.Lock() for k in RUNS}
+TRACKER_LOCK = threading.Lock()
 STATIC = Path(__file__).parent / "static"
 
 
@@ -224,6 +229,166 @@ async def import_profile(user_id: str = Form(...), base: str = Form("{}"), urls:
 
 
 # ------------------------------------------------------------------ runs
+TrackerStatus = Literal["ready_to_submit", "applied", "interview", "offer", "rejected", "withdrawn"]
+TRACKED_TOOLS = {
+    "submit_application": "applied",
+    "send_application_email": "applied",
+    "browser_submit_application": "applied",
+    "fill_application_form": "ready_to_submit",
+}
+
+
+class TrackerCreate(BaseModel):
+    user_id: str = Field(min_length=2, max_length=41)
+    title: str = Field(min_length=1, max_length=150)
+    company: str = Field("", max_length=150)
+    location: str = Field("", max_length=100)
+    url: str = Field("", max_length=500, pattern=r"^(https?://.*)?$")
+    channel: str = Field("Manual", max_length=40)
+    applied_at: date = Field(default_factory=date.today)
+    status: TrackerStatus = "applied"
+    follow_up_date: date | None = None
+    notes: str = Field("", max_length=2000)
+
+
+class TrackerUpdate(BaseModel):
+    status: TrackerStatus
+    follow_up_date: date | None = None
+    notes: str = Field("", max_length=2000)
+
+
+def _read_tracker() -> dict:
+    if not TRACKER_FILE.exists():
+        return {"entries": [], "dismissed_sources": []}
+    data = json.loads(TRACKER_FILE.read_text(encoding="utf-8"))
+    if isinstance(data, list):
+        data = {"entries": data, "dismissed_sources": []}
+    if (not isinstance(data, dict) or not isinstance(data.get("entries"), list)
+            or not all(isinstance(item, dict) for item in data["entries"])
+            or not isinstance(data.get("dismissed_sources", []), list)):
+        raise ValueError(f"Invalid application tracker data in {TRACKER_FILE}")
+    return data
+
+
+def _write_tracker(state: dict) -> None:
+    TRACKER_FILE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = TRACKER_FILE.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.replace(TRACKER_FILE)
+
+
+def _sync_run_applications(state: dict) -> bool:
+    entries = state["entries"]
+    by_source = {item.get("source_ref"): item for item in entries if item.get("source_ref")}
+    dismissed = set(state.get("dismissed_sources", []))
+    changed = False
+    for run in RUNS.values():
+        for step in run.trajectory:
+            status = TRACKED_TOOLS.get(step.get("tool"))
+            if not status or not step.get("ok"):
+                continue
+            job_id = (step.get("input") or {}).get("job_id", "")
+            if not job_id:
+                continue
+            source_ref = f"{run.id}:{job_id}"
+            if source_ref in dismissed:
+                continue
+            existing = by_source.get(source_ref)
+            if existing:
+                if existing.get("status") == "ready_to_submit" and status == "applied":
+                    existing["status"] = "applied"
+                    existing["channel"] = step["tool"].replace("_", " ")
+                    existing["updated_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
+                    changed = True
+                continue
+            job = run.ctx.jobs.get(job_id, {})
+            output_job = (step.get("output") or {}).get("job", {})
+            started = datetime.fromtimestamp(run.started).astimezone().date().isoformat()
+            entry = {
+                "id": uuid.uuid4().hex,
+                "user_id": run.ctx.profile.user_id,
+                "profile_name": run.ctx.profile.name,
+                "job_id": job_id,
+                "title": job.get("title") or output_job.get("title") or f"Application for {job_id}",
+                "company": job.get("company") or output_job.get("company") or "",
+                "location": job.get("location") or output_job.get("location") or "",
+                "url": job.get("url") or job.get("apply_url") or "",
+                "channel": step["tool"].replace("_", " "),
+                "applied_at": started,
+                "status": status,
+                "follow_up_date": None,
+                "notes": "",
+                "source_ref": source_ref,
+                "created_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+                "updated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+            }
+            entries.append(entry)
+            by_source[source_ref] = entry
+            changed = True
+    return changed
+
+
+@app.get("/api/tracker")
+def list_tracker(user_id: str | None = None):
+    if user_id is not None and not SAFE_ID.match(user_id):
+        raise HTTPException(400, "user id: lowercase letters, digits and dashes")
+    with TRACKER_LOCK:
+        state = _read_tracker()
+        if _sync_run_applications(state):
+            _write_tracker(state)
+        entries = state["entries"]
+    if user_id:
+        entries = [item for item in entries if item.get("user_id") == user_id]
+    return sorted(entries, key=lambda item: (item.get("applied_at", ""), item.get("created_at", "")), reverse=True)
+
+
+@app.post("/api/tracker", status_code=201)
+def create_tracker_entry(entry: TrackerCreate):
+    _ppath(entry.user_id)
+    now = datetime.now().astimezone().isoformat(timespec="seconds")
+    item = {
+        "id": uuid.uuid4().hex,
+        **entry.model_dump(mode="json"),
+        "profile_name": "",
+        "job_id": "",
+        "source_ref": "",
+        "created_at": now,
+        "updated_at": now,
+    }
+    with TRACKER_LOCK:
+        state = _read_tracker()
+        state["entries"].append(item)
+        _write_tracker(state)
+    return item
+
+
+@app.patch("/api/tracker/{entry_id}")
+def update_tracker_entry(entry_id: str, update: TrackerUpdate):
+    with TRACKER_LOCK:
+        state = _read_tracker()
+        item = next((entry for entry in state["entries"] if entry.get("id") == entry_id), None)
+        if not item:
+            raise HTTPException(404, "application not found")
+        item.update(update.model_dump(mode="json"))
+        item["updated_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
+        _write_tracker(state)
+    return item
+
+
+@app.delete("/api/tracker/{entry_id}")
+def delete_tracker_entry(entry_id: str):
+    with TRACKER_LOCK:
+        state = _read_tracker()
+        item = next((entry for entry in state["entries"] if entry.get("id") == entry_id), None)
+        if not item:
+            raise HTTPException(404, "application not found")
+        state["entries"].remove(item)
+        if item.get("source_ref"):
+            state["dismissed_sources"] = list(set(state.get("dismissed_sources", [])) | {item["source_ref"]})
+        _write_tracker(state)
+    return {"deleted": True}
+
+
 class RunIn(BaseModel):
     user_id: str
     job_ids: list[str] = Field(default_factory=list, max_length=10)

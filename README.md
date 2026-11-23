@@ -42,7 +42,8 @@ python run.py
 ```
 Open http://127.0.0.1:8000. The sandbox job board is at http://127.0.0.1:8100.
 Runs are saved in `data/runs/`, so a run waiting for your approval survives a restart.
-Flow: **Profile** (import + review facts) → **Apply** (job ids / link / pasted posting / search + channel) → **Run** (live trajectory, approval card) → **Sandbox** (see what was written, reset).
+Flow: **Profile** (import + review facts) → **Apply** (job ids / link / pasted posting / search + channel) → **Run** (live trajectory, approval card) → **Tracker** (application statuses and follow-up dates) → **Sandbox** (see what was written, reset).
+Confirmed submissions are added to the tracker automatically; form fills that still need your click are clearly marked as not submitted. You can also add applications submitted outside The Operator, update their status, set follow-up dates, and keep notes.
 
 CLI alternative: `python -m agent.runner --profile sandbox/profiles/lina.json --job J-1001 --channel api`
 
@@ -74,7 +75,7 @@ Without the variables nothing is sent and nothing changes.
 ## Tests and eval
 
 ```bash
-pytest -q                              # 68 tests: stop rule, checkpoint, idempotency, policies, form never submits, saved runs,
+pytest -q                              # 70 tests: stop rule, checkpoint, idempotency, policies, form never submits, saved runs,
                                        #   browser-use channel (real Chrome: submit guard, form read-back, changed-form refusal)
 python -m eval.run_eval                # 40 trajectory scenarios with the real model -> eval/results/<model>/
 python -m eval.run_eval --only I01,I03 # a subset
@@ -124,6 +125,7 @@ Writes never run when the model calls them: the loop pauses and shows the exact 
 
 | Member | Contribution |
 |---|---|
+| Seif-03 | Application tracker (API, UI, persistence and tests); completed evaluation results and formal report |
 | _name_ | _e.g. agent loop, stop rule, tests_ |
 | _name_ | _e.g. sandbox, eval harness_ |
 | _name_ | _e.g. web UI, form-fill mode_ |

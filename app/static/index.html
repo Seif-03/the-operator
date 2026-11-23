@@ -61,7 +61,7 @@ main{max-width:1180px;margin:0 auto;padding:24px 20px 120px}
 
 /* ---------- forms */
 label.f{display:block;font-weight:600;font-size:13px;color:var(--ink2);margin:14px 0 6px}
-input[type=text],input[type=email],input[type=url],input[type=number],input:not([type]),textarea,select{width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);font:inherit;font-size:14.5px;transition:border-color .15s}
+input[type=text],input[type=email],input[type=url],input[type=number],input[type=date],input:not([type]),textarea,select{width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);font:inherit;font-size:14.5px;transition:border-color .15s}
 input:focus,textarea:focus,select:focus{border-color:var(--brand);outline:none}
 textarea{min-height:90px;resize:vertical}
 .row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
@@ -168,6 +168,9 @@ textarea{min-height:90px;resize:vertical}
 .status.running{background:var(--run-soft);color:var(--run)} .status.running::before{animation:pulse 1.2s infinite}
 .status.awaiting_approval,.status.awaiting_input{background:var(--warn-soft);color:var(--warn)} .status.awaiting_approval::before,.status.awaiting_input::before{animation:pulse 1.2s infinite}
 .status.done{background:var(--ok-soft);color:var(--ok)} .status.stopped,.status.error{background:var(--bad-soft);color:var(--bad)}
+.status.ready_to_submit,.status.applied{background:var(--run-soft);color:var(--run)}
+.status.interview,.status.offer{background:var(--ok-soft);color:var(--ok)}
+.status.rejected,.status.withdrawn{background:var(--bg2);color:var(--muted)}
 @keyframes pulse{50%{opacity:.25}}
 .runhead{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
 .runhead h2{font-size:20px;margin:0 0 6px;letter-spacing:-.3px}
@@ -230,6 +233,15 @@ table.kvt td:first-child{color:var(--muted);font:12.5px var(--mono);width:36%}
 .item .h{display:flex;justify-content:space-between;gap:10px;font-weight:650;font-size:14px}
 .item .m{font-size:13px;color:var(--muted);margin-top:2px}
 .item details summary{font-size:12.5px;color:var(--brand);cursor:pointer;margin-top:6px}
+.tracker-list{display:grid;gap:12px}
+.tracker-card{border:1px solid var(--line);border-radius:13px;padding:16px;background:var(--panel)}
+.tracker-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.tracker-head h3{margin:0;color:var(--ink);font-size:16px;text-transform:none;letter-spacing:0}
+.tracker-meta{font-size:13px;color:var(--muted);margin-top:3px}
+.tracker-card .row{margin-top:8px}
+.tracker-card textarea{min-height:64px}
+.tracker-card .actions{margin-top:10px}
+.tracker-stats{display:flex;gap:8px;flex-wrap:wrap}
 .empty{text-align:center;padding:30px 12px;color:var(--muted)}
 .empty svg.i{width:34px;height:34px;color:var(--line);margin-bottom:6px}
 
@@ -265,6 +277,7 @@ dialog h2{margin:0 0 6px;font-size:19px}
     <button class="tab" data-v="profile"><svg class="i"><use href="#i-user"/></svg><span class="lbl">Profile</span></button>
     <button class="tab" data-v="apply"><svg class="i"><use href="#i-send"/></svg><span class="lbl">Apply</span></button>
     <button class="tab" data-v="runs"><svg class="i"><use href="#i-activity"/></svg><span class="lbl">Runs</span><span class="badge hidden" id="needBadge"></span></button>
+    <button class="tab" data-v="tracker"><svg class="i"><use href="#i-clipboard"/></svg><span class="lbl">Tracker</span></button>
     <button class="tab" data-v="sandbox"><svg class="i"><use href="#i-inbox"/></svg><span class="lbl">Sandbox</span></button>
   </nav>
   <div class="env"><span class="chip" id="modeChip">…</span><span class="chip model" id="modelChip"><span class="dot" id="modelDot"></span><span id="modelName"></span></span></div>
@@ -456,6 +469,31 @@ dialog h2{margin:0 0 6px;font-size:19px}
   </div>
 </section>
 
+<!-- ======================= APPLICATION TRACKER ======================= -->
+<section id="v-tracker" class="hidden">
+  <div class="hero"><div><h1>Application tracker</h1><p>Keep application statuses, follow-up dates, and notes in one place. Confirmed submissions from agent runs appear automatically.</p></div>
+    <button class="btn" id="trackerRefresh"><svg class="i"><use href="#i-refresh"/></svg>Refresh</button></div>
+  <div class="tracker-stats" id="trackerStats"></div>
+  <div class="grid cols-2" style="margin-top:18px;align-items:start">
+    <div class="card">
+      <h2><svg class="i"><use href="#i-plus"/></svg>Add an application</h2>
+      <p class="sub">Use this for applications you submitted outside The Operator, too.</p>
+      <form id="trackerForm">
+        <label class="f" for="trackTitle">Job title</label><input id="trackTitle" required maxlength="150" placeholder="e.g. Working Student — Data Engineering">
+        <div class="row"><div><label class="f" for="trackCompany">Company</label><input id="trackCompany" maxlength="150"></div>
+          <div><label class="f" for="trackApplied">Applied on</label><input id="trackApplied" type="date" required></div></div>
+        <label class="f" for="trackUrl">Job link</label><input id="trackUrl" type="url" maxlength="500" placeholder="https://…">
+        <div class="actions"><button class="btn primary" type="submit"><svg class="i"><use href="#i-plus"/></svg>Add to tracker</button></div>
+      </form>
+    </div>
+    <div class="card">
+      <h2><svg class="i"><use href="#i-list"/></svg>Your applications</h2>
+      <p class="sub">Update a status or set a follow-up date. Changes are saved on this computer.</p>
+      <div id="trackerList" class="tracker-list"></div>
+    </div>
+  </div>
+</section>
+
 <!-- ======================= SANDBOX ======================= -->
 <section id="v-sandbox" class="hidden">
   <div class="hero"><div><h1>Sandbox</h1><p>A fake job board and mailbox. Everything the agent “sends” in test mode lands here, and nothing reaches a real company.</p></div>
@@ -554,7 +592,7 @@ function show(v) {
   $$("main>section").forEach(s => s.classList.toggle("hidden", s.id !== "v-" + v));
   $$(".tab").forEach(b => b.classList.toggle("on", b.dataset.v === v));
   $("#savebar").classList.toggle("show", DIRTY && v === "profile");
-  if (v === "apply") enterApply(); if (v === "runs") loadRuns(true); if (v === "sandbox") loadSandbox();
+  if (v === "apply") enterApply(); if (v === "runs") loadRuns(true); if (v === "tracker") loadTracker(); if (v === "sandbox") loadSandbox();
   window.scrollTo({top: 0});
 }
 $$(".tab").forEach(b => b.onclick = () => show(b.dataset.v));
@@ -1019,6 +1057,74 @@ function renderGate(r) {
   $("#gate").scrollIntoView({behavior: "smooth", block: "start"});
 }
 
+/* =================================================================== application tracker */
+const TRACKER_STATUS = {ready_to_submit: "Ready to submit (not confirmed)", applied: "Applied", interview: "Interview",
+  offer: "Offer", rejected: "Rejected", withdrawn: "Withdrawn"};
+function localToday() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function trackerDate(s) {
+  return s ? new Date(s + "T00:00:00").toLocaleDateString(undefined, {day: "numeric", month: "short", year: "numeric"}) : "—";
+}
+async function loadTracker() {
+  try {
+    const entries = await api("/api/tracker?user_id=" + encodeURIComponent(PROFILE.user_id));
+    const today = localToday();
+    const pending = entries.filter(a => ["ready_to_submit", "applied", "interview"].includes(a.status));
+    const due = entries.filter(a => a.follow_up_date && a.follow_up_date <= today && ["applied", "interview"].includes(a.status)).length;
+    $("#trackerStats").innerHTML = `<span class="chip">${entries.length} total</span><span class="chip">${pending.length} active</span>` +
+      (due ? `<span class="chip" style="background:var(--warn-soft);color:var(--warn)">${due} follow-up${due === 1 ? "" : "s"} due</span>` : "");
+    $("#trackerList").innerHTML = entries.map(a => {
+      const overdue = a.follow_up_date && a.follow_up_date <= today && ["applied", "interview"].includes(a.status);
+      const options = Object.entries(TRACKER_STATUS).map(([v, label]) => `<option value="${v}" ${a.status === v ? "selected" : ""}>${esc(label)}</option>`).join("");
+      const job = a.url ? `<a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.company || a.url)} ${icon("external")}</a>` : esc(a.company || a.location || "");
+      return `<article class="tracker-card" data-id="${esc(a.id)}">
+        <div class="tracker-head"><div><h3>${esc(a.title)}</h3><div class="tracker-meta">${job}${a.location ? ` · ${esc(a.location)}` : ""}</div>
+          <div class="tracker-meta">Tracked ${trackerDate(a.applied_at)}${a.profile_name ? ` · ${esc(a.profile_name)}` : ""}${a.channel ? ` · ${esc(a.channel)}` : ""}${a.job_id ? ` · ${esc(a.job_id)}` : ""}</div></div>
+          <span class="status ${esc(a.status)}">${esc(TRACKER_STATUS[a.status] || a.status)}</span></div>
+        <div class="row"><div><label class="f">Status</label><select data-field="status">${options}</select></div>
+          <div><label class="f">Follow-up date</label><input type="date" data-field="follow_up_date" value="${esc(a.follow_up_date || "")}">
+            ${overdue ? `<div class="hint" style="color:var(--warn)">Follow-up is due</div>` : ""}</div></div>
+        <label class="f">Notes</label><textarea data-field="notes" maxlength="2000" placeholder="Interview details, next steps…">${esc(a.notes || "")}</textarea>
+        <div class="actions"><button class="btn sm primary" data-save>Save changes</button><button class="btn sm ghost danger" data-delete>Remove</button></div>
+      </article>`;
+    }).join("") || `<div class="empty">${icon("clipboard")}<div>No applications tracked yet.</div><div class="small">Completed applications will appear here automatically.</div></div>`;
+    $$("#trackerList [data-save]").forEach(b => b.onclick = async () => {
+      const card = b.closest(".tracker-card"), id = card.dataset.id;
+      b.disabled = true;
+      try {
+        await api("/api/tracker/" + encodeURIComponent(id), json("PATCH", {
+          status: card.querySelector('[data-field="status"]').value,
+          follow_up_date: card.querySelector('[data-field="follow_up_date"]').value || null,
+          notes: card.querySelector('[data-field="notes"]').value,
+        }));
+        toast("Application updated", "ok"); await loadTracker();
+      } catch (e) { toast(e.message, "bad"); b.disabled = false; }
+    });
+    $$("#trackerList [data-delete]").forEach(b => b.onclick = async () => {
+      const card = b.closest(".tracker-card");
+      if (!confirm("Remove this application from the tracker?")) return;
+      try { await api("/api/tracker/" + encodeURIComponent(card.dataset.id), {method: "DELETE"}); toast("Application removed", "ok"); await loadTracker(); }
+      catch (e) { toast(e.message, "bad"); }
+    });
+  } catch (e) { toast(e.message, "bad"); }
+}
+$("#trackerForm").onsubmit = async e => {
+  e.preventDefault();
+  const b = e.currentTarget.querySelector('[type="submit"]'); b.disabled = true;
+  try {
+    await api("/api/tracker", json("POST", {
+      user_id: PROFILE.user_id, title: $("#trackTitle").value.trim(), company: $("#trackCompany").value.trim(),
+      applied_at: $("#trackApplied").value, url: $("#trackUrl").value.trim(),
+    }));
+    e.currentTarget.reset(); $("#trackApplied").value = localToday();
+    toast("Application added", "ok"); await loadTracker();
+  } catch (err) { toast(err.message, "bad"); }
+  finally { b.disabled = false; }
+};
+$("#trackerRefresh").onclick = () => loadTracker().then(() => toast("Tracker refreshed"));
+
 /* =================================================================== sandbox */
 async function loadSandbox() {
   const s = await api("/api/sandbox").catch(() => ({up: false, applications: [], mail: []}));
@@ -1045,6 +1151,7 @@ $("#sbReset").onclick = async () => { if (!confirm("Delete all test applications
   $("#modelBanner").classList.toggle("hidden", !CFG.model_problem); $("#modelProblem").textContent = " " + (CFG.model_problem || "");
   $("#boardLink").href = CFG.sandbox_url;
   $("#modelChip").title += CFG.langsmith ? ` · traced to LangSmith project “${CFG.langsmith_project}”` : " · LangSmith tracing off";
+  $("#trackApplied").value = localToday();
   await loadProfiles();
   show(store.get("view", "profile"));
   if (VIEW !== "runs") loadRuns(false);
