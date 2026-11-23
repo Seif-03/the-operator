@@ -125,6 +125,7 @@ Writes never run when the model calls them: the loop pauses and shows the exact 
 
 | Member | Contribution |
 |---|---|
+| Seif-03 | Application tracker (API, UI, persistence and tests); completed evaluation results and formal report |
 | _name_ | _e.g. agent loop, stop rule, tests_ |
 | _name_ | _e.g. sandbox, eval harness_ |
 | _name_ | _e.g. web UI, form-fill mode_ |
